@@ -1,0 +1,17 @@
+services:
+  handler:
+    build:
+      context: .
+    command: fastapi dev --host 0.0.0.0 main.py
+    volumes:
+      - ./src:/app:ro
+    ports:
+      - 8888:8000
+    networks:
+      minichris-local:
+        aliases:
+          - poc.handler.chris
+
+networks:
+  minichris-local:
+    external: true
