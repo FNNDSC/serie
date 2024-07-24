@@ -20,5 +20,5 @@ async def pl_dircopy() -> Plugin:
     global __PL_DIRCOPY
     if __PL_DIRCOPY is None:
         client = await client_oncelock()
-        __PL_DIRCOPY = await client.search_plugins(name_exact="pl-dircopy").first()
+        __PL_DIRCOPY = await client.search_pipeline(name_exact="pl-dircopy").first()
     return __PL_DIRCOPY

@@ -1,5 +1,7 @@
+# Run SERIE in development mode in an existing miniChRIS network.
+
 services:
-  handler:
+  dev:
     build:
       context: .
     command: fastapi dev --host 0.0.0.0 main.py

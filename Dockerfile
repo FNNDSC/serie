@@ -1,8 +1,8 @@
-FROM python:3.12.3-slim
+FROM python:3.12.3-alpine
 
 WORKDIR /app
 COPY requirements.lock ./
 RUN PYTHONDONTWRITEBYTECODE=1 pip install --no-cache-dir -r requirements.lock
 
-#COPY src .
-#CMD ["python", "main.py"]
+COPY src .
+CMD ["fastapi", "run", "main.py"]

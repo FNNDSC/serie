@@ -1,17 +1,17 @@
 [project]
-name = "hasura-chris-poc"
+name = "serie"
 version = "0.1.0"
-description = "Add your description here"
+description = "Specific Endpoints for Research Integration Events"
 authors = [
-    { name = "Jennings Zhang", email = "dev@sl.jennin.xyz" }
+    { name = "FNNDSC", email = "dev@babyMRI.org" }
 ]
 dependencies = [
     "fastapi>=0.111.1",
-    "aiochris==0.5.0a6",
+    "aiochris~=0.5.0",
     "yarl>=1.9.4",
 ]
 readme = "README.md"
-requires-python = ">= 3.8"
+requires-python = ">= 3.12"
 
 [build-system]
 requires = ["hatchling"]
@@ -26,4 +26,4 @@ virtual = true
 allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/hasura_chris_poc"]
+packages = ["src/serie"]
