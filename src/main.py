@@ -1,25 +1,26 @@
-from fastapi import FastAPI
-from pydantic import BaseModel
-from serie.global_client import pl_dircopy as get_pl_dircopy, client_oncelock as get_client
 import os.path
+
+from fastapi import FastAPI
+
+from serie.global_client import (
+    pl_dircopy as get_pl_dircopy,
+    client_oncelock as get_client,
+)
+from serie.models import DicomSeriesPayload
 
 app = FastAPI()
 
 
-class ReceivedDicom(BaseModel):
-    fname: str
-    series_instance_uid: str
-    protocol_name: str
-
-
-@app.post("/handle_dicom/")
-async def handle_dicom(dicom: ReceivedDicom) -> str:
-    if dicom.protocol_name != 'OxidicomAttemptedPushCount':
-        return 'SKIPPED'
+@app.post("/dicom_series/")
+async def dicom_series(payload: DicomSeriesPayload) -> str:
+    if dicom.protocol_name != "OxidicomAttemptedPushCount":
+        return "SKIPPED"
 
     client = await get_client()
-    a_series_file = await client.search_pacsfiles(SeriesInstanceUID=dicom.series_instance_uid).first()
-    series_dir = os.path. dirname(a_series_file)
+    a_series_file = await client.search_pacsfiles(
+        SeriesInstanceUID=dicom.series_instance_uid
+    ).first()
+    series_dir = os.path.dirname(a_series_file)
 
     pl_dircopy = await get_pl_dircopy()
     plinst = await pl_dircopy.create_instance(dir=series_dir)
@@ -28,5 +29,3 @@ async def handle_dicom(dicom: ReceivedDicom) -> str:
 
     await plinst.attach_pipeline(...)
     return "OK"
-
-
