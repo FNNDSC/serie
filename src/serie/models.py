@@ -4,10 +4,12 @@ import re
 
 from pydantic import BaseModel, ConfigDict, NonNegativeInt, PastDatetime, Field
 
+from serie.feed_name_template import ATTRIBUTE_NAMES
+
 
 class PacsFile(BaseModel):
     """
-    A row from the ``pacsfiles_pacsfile`` table.
+    A row from the `pacsfiles_pacsfile` table.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -64,10 +66,12 @@ class OxidicomCustomMetadata(BaseModel):
     patient_id: str
     creation_date: PastDatetime
     association_ulid: str
+    series_dir: str
+    """Folder path where the series' DICOM files can be found."""
 
     _FNAME_RE: ClassVar[re.Pattern] = re.compile(
         r"SERVICES/PACS/org.fnndsc.oxidicom/SERVICES/PACS/"
-        r"(?P<pacs_identifier>\w+)/.+?/.+?/.+?/(?P<association_ulid>\w+?)/\w+=\d+"
+        r"(?P<pacs_identifier>\w+)/(?P<series_dir_rel>.+?/.+?/.+?)/(?P<association_ulid>\w+?)/\w+=\d+"
     )
 
     @classmethod
@@ -79,7 +83,9 @@ class OxidicomCustomMetadata(BaseModel):
         if name is None:
             return None
 
-        pacs_identifier, association_ulid = cls._parse_ocm_fname(pacs_file.fname)
+        pacs_identifier, series_dir, association_ulid = cls._parse_ocm_fname(
+            pacs_file.fname
+        )
 
         return cls(
             name=name,
@@ -89,11 +95,12 @@ class OxidicomCustomMetadata(BaseModel):
             pacs_identifier=pacs_identifier,
             patient_id=pacs_file.patient_id,
             creation_date=pacs_file.creation_date,
-            association_ulid=association_ulid
+            association_ulid=association_ulid,
+            series_dir=series_dir,
         )
 
     @classmethod
-    def _parse_ocm_fname(cls, fname: str) -> tuple[str, str]:
+    def _parse_ocm_fname(cls, fname: str) -> tuple[str, str, str]:
         """
         Parse a fname of an "oxidicom custom metadata" file.
 
@@ -102,22 +109,24 @@ class OxidicomCustomMetadata(BaseModel):
         match = cls._FNAME_RE.fullmatch(fname)
         if not match:
             raise ValueError('Invalid fname of a "oxidicom custom metadata" file.')
-        return match.group("pacs_identifier"), match.group("association_ulid")
+        pacs_identifier = match.group("pacs_identifier")
+        series_dir = f'SERVICES/PACS/{pacs_identifier}/{match.group("series_dir_rel")}'
+        return pacs_identifier, series_dir, match.group("association_ulid")
 
 
-class ChrisRunnable(BaseModel):
+class ChrisRunnableRequest(BaseModel):
     """
-    A _ChRIS_ plugin.
+    Identifying details of a _ChRIS_ plugin.
 
-    (In the near future, ``ChrisRunnable`` can be a plugin or pipeline. Right now,
-    only plugins are supported.)
+    (Only plugins supported for now. Support for pipelines is a potential future feature.)
     """
 
     model_config = ConfigDict(frozen=True)
 
-    runnable_type: Literal["plugin"] = Field(alias="type")
-    name: str
-    version: Optional[str]
+    runnable_type: Literal["plugin"] = Field(alias="type", title="Type of runnable")
+    name: str = Field(title="Plugin name", examples=["pl-dylld", "pl-dcm2niix"])
+    version: Optional[str] = Field(title="Plugin version", examples=["1.2.3"])
+    params: dict[str, int | float | bool | str] = Field(title="Plugin parameters")
 
 
 class DicomSeriesPayload(BaseModel):
@@ -127,7 +136,20 @@ class DicomSeriesPayload(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    data: PacsFile
-    """The inserted data."""
-    jobs: frozenset[ChrisRunnable]
-    """Jobs to run on the series data."""
+    hasura_id: str = Field(title="ID of event from Hasura")
+
+    data: PacsFile = Field(title="The inserted DICOM file metadata")
+    jobs: frozenset[ChrisRunnableRequest] = Field(
+        title="Plugins or pipelines to run on the series data"
+    )
+    feed_name_template: str = Field(
+        title="Template for how to create the feed name",
+        description=(
+            "Uses the [Python string formatting](https://docs.python.org/3/library/string.html#formatstrings) syntax. "
+            f"Available variables include: {','.join(ATTRIBUTE_NAMES)}"
+            "\nKeep in mind that there is a 200-character limit on feed names."
+        ),
+        examples=[
+            r'SERIE analysis: MRN="{PatientID}" description="{SeriesDescription}"'
+        ],
+    )

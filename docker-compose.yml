@@ -12,7 +12,7 @@ services:
     networks:
       minichris-local:
         aliases:
-          - poc.handler.chris
+          - serie
 
 networks:
   minichris-local:

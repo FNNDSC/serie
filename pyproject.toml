@@ -1,14 +1,17 @@
 [project]
 name = "serie"
-version = "0.1.0"
+version = "0.0.0"  # <-- version in pyproject.toml is ignored. Set the version in src/serie/version.txt
 description = "Specific Endpoints for Research Integration Events"
 authors = [
     { name = "FNNDSC", email = "dev@babyMRI.org" }
 ]
 dependencies = [
     "fastapi>=0.111.1",
-    "aiochris~=0.5.0",
+    "aiochris~=0.8.0",
     "yarl>=1.9.4",
+    "asyncstdlib>=3.12.4",
+    "pydantic-settings>=2.3.4",
+    "requests>=2.32.3",
 ]
 readme = "README.md"
 requires-python = ">= 3.12"
@@ -21,6 +24,13 @@ build-backend = "hatchling.build"
 managed = true
 dev-dependencies = [
     "pytest>=8.3.2",
+    "pytest-asyncio>=0.23.8",
+    "asyncio>=3.4.3",
+    "aiohttp>=3.9.5",
+    "pydicom>=2.4.4",
+    "asyncer>=0.0.7",
+    "pynetdicom>=2.1.0",
+    "docker>=7.1.0",
 ]
 
 [tool.hatch.metadata]
