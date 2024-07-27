@@ -38,7 +38,7 @@ async def server() -> UvicornTestServer:
         # The default option causes some conflict with the outer loop.
         # A workaround is to set loop="asyncio". This will surely
         # break in the future!
-        loop="asyncio"
+        loop="asyncio",
     )
     server = UvicornTestServer(uvicorn_config)
     await server.start()
@@ -86,7 +86,9 @@ async def _start_test(chris: ChrisClient):
         await asyncio.sleep(0.25)
         elapsed += 0.25
         if elapsed > 5:
-            raise pytest.fail(f"DICOM sent from AET={config.AE_TITLE} to oxidicom did not appear in the CUBE at {chris.url}.")
+            raise pytest.fail(
+                f"DICOM sent from AET={config.AE_TITLE} to oxidicom did not appear in the CUBE at {chris.url}."
+            )
 
 
 def clear_dicoms_from_cube():

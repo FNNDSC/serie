@@ -1,4 +1,5 @@
 import enum
+from collections.abc import Sequence
 from typing import Literal, Optional, Self, ClassVar
 import re
 
@@ -20,7 +21,7 @@ class PacsFile(BaseModel):
     patient_sex: Optional[str] = Field(alias="PatientSex")
     accession_number: str = Field(alias="AccessionNumber")
     patient_age: Optional[NonNegativeInt] = Field(alias="PatientAge")
-    creation_date: PastDatetime
+    creation_date: PastDatetime = Field()
     pacs_id: NonNegativeInt
     patient_birth_date: Optional[PastDatetime] = Field(alias="PatientBirthDate")
     patient_id: str = Field(alias="PatientID")
@@ -123,10 +124,16 @@ class ChrisRunnableRequest(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    runnable_type: Literal["plugin"] = Field(alias="type", title="Type of runnable")
+    runnable_type: Literal["plugin"] = Field(
+        alias="type", title="Type of runnable", default="plugin"
+    )
     name: str = Field(title="Plugin name", examples=["pl-dylld", "pl-dcm2niix"])
-    version: Optional[str] = Field(title="Plugin version", examples=["1.2.3"])
-    params: dict[str, int | float | bool | str] = Field(title="Plugin parameters")
+    version: Optional[str] = Field(
+        title="Plugin version", examples=["1.2.3"], default=None
+    )
+    params: dict[str, int | float | bool | str] = Field(
+        title="Plugin parameters", default_factory=dict
+    )
 
 
 class DicomSeriesMatcher(BaseModel):
@@ -153,8 +160,8 @@ class DicomSeriesPayload(BaseModel):
     hasura_id: str = Field(title="ID of event from Hasura")
 
     data: PacsFile = Field(title="The inserted DICOM file metadata")
-    match: DicomSeriesMatcher = Field(title="Which DICOM series to include")
-    jobs: frozenset[ChrisRunnableRequest] = Field(
+    match: Sequence[DicomSeriesMatcher] = Field(title="Which DICOM series to include")
+    jobs: Sequence[ChrisRunnableRequest] = Field(
         title="Plugins or pipelines to run on the series data"
     )
     feed_name_template: str = Field(

@@ -33,4 +33,5 @@ async def dicom_series(
     except BadAuthorizationError as e:
         response.status_code = status.HTTP_401_UNAUTHORIZED
         return None
+    response.status_code = status.HTTP_201_CREATED
     return feed.url
