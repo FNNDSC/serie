@@ -2,3 +2,5 @@
 __pycache__
 /src/serie/version.txt
 /.test_data
+coverage.xml
+

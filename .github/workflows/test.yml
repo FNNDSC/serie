@@ -24,7 +24,7 @@ jobs:
       - name: Test
         id: test
         continue-on-error: true  # we want to upload coverage, even on failure
-        run: docker compose run -T --use-aliases test
+        run: docker compose run -T --use-aliases test pytest --color=yes --cov=serie --cov-report=xml --run-e2e
       - name: Copy coverage.xml from container
         run: docker cp "$(docker compose ps -a test -q | tail -n 1):/app/coverage.xml" coverage.xml
       - name: Upload coverage to Codecov

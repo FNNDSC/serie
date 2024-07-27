@@ -8,18 +8,46 @@ import pynetdicom
 import pytest
 import pytest_asyncio
 import requests
+import uvicorn
 from aiochris import ChrisClient
 from aiochris.errors import IncorrectLoginError
 from asyncer import asyncify
+from fastapi import FastAPI
 
 import tests.e2e_config as config
+from serie import router
 from serie.settings import get_settings
+from tests.uvicorn_test_server import UvicornTestServer
 
 
 @pytest.mark.e2e
 @pytest.mark.asyncio
-async def test_e2e(chris: ChrisClient):
+async def test_e2e(server: UvicornTestServer, chris: ChrisClient):
     await _start_test(chris)
+
+
+@pytest_asyncio.fixture
+async def server() -> UvicornTestServer:
+    app = FastAPI(title="SERIE TEST")
+    app.include_router(router)
+    uvicorn_config = uvicorn.Config(
+        app=app,
+        host="0.0.0.0",
+        port=config.SERIE_PORT,
+        # N.B. uvicorn wants to create its own async event loop.
+        # The default option causes some conflict with the outer loop.
+        # A workaround is to set loop="asyncio". This will surely
+        # break in the future!
+        loop="asyncio"
+    )
+    server = UvicornTestServer(uvicorn_config)
+    await server.start()
+    try:
+        yield server
+    except Exception:
+        raise
+    finally:
+        await server.stop()
 
 
 @pytest_asyncio.fixture
