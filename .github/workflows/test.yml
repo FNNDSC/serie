@@ -1,0 +1,35 @@
+name: Test
+
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - '.github/workflows/test.yml'
+      - '**.py'
+  pull_request:
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Spin up ChRIS
+        uses: FNNDSC/miniChRIS-docker@master
+        with:
+          # for testing, we need to create plugin instances, but we don't need the plugins to actually run.
+          services: chris oxidicom graphql-engine
+      - name: Build
+        run: docker compose build test
+      - name: Test
+        id: test
+        continue-on-error: true  # we want to upload coverage, even on failure
+        run: docker compose run -T --use-aliases test
+      - name: Copy coverage.xml from container
+        run: docker cp "$(docker compose ps -a test -q | tail -n 1):/app/coverage.xml" coverage.xml
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage.xml
+          fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}

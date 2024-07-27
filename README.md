@@ -55,12 +55,6 @@ so we need to run them with Docker Compose:
 docker compose run test
 ```
 
-Coverage data can be obtained from the stopped test container:
-
-```shell
-docker cp "$(docker compose ps -a test -q | tail -n 1):/app/coverage.xml" coverage.xml
-```
-
 ### Deployment
 
 See https://github.com/FNNDSC/charts
