@@ -1,24 +1,22 @@
-import os
+import asyncio
+import textwrap
 from pathlib import Path
 
+import docker
 import pydicom
 import pynetdicom
 import pytest
 import pytest_asyncio
 import requests
-import docker
-import textwrap
 from aiochris import ChrisClient
 from aiochris.errors import IncorrectLoginError
 from asyncer import asyncify
 
 import tests.e2e_config as config
+from serie.settings import get_settings
 
 
-@pytest.mark.skipif(
-    os.environ.get("SERIE_PYTEST_E2E", "").lower() != "y",
-    reason="Run with `env SERIE_PYTEST_E2E=y pytest` to enable end-to-end test.",
-)
+@pytest.mark.e2e
 @pytest.mark.asyncio
 async def test_e2e(chris: ChrisClient):
     await _start_test(chris)
@@ -26,21 +24,22 @@ async def test_e2e(chris: ChrisClient):
 
 @pytest_asyncio.fixture
 async def chris() -> ChrisClient:
+    settings = get_settings()
     try:
         client = await ChrisClient.from_login(
-            url=config.CUBE_URL,
+            url=settings.chris_url,
             username=config.CHRIS_USERNAME,
             password=config.CHRIS_PASSWORD,
         )
     except IncorrectLoginError:
         await ChrisClient.create_user(
-            url=config.CUBE_URL,
+            url=settings.chris_url,
             username=config.CHRIS_USERNAME,
             password=config.CHRIS_PASSWORD,
             email=f"{config.CHRIS_USERNAME}@example.org",
         )
         client = await ChrisClient.from_login(
-            url=config.CUBE_URL,
+            url=settings.chris_url,
             username=config.CHRIS_USERNAME,
             password=config.CHRIS_PASSWORD,
         )
@@ -51,8 +50,15 @@ async def chris() -> ChrisClient:
 async def _start_test(chris: ChrisClient):
     await asyncify(clear_dicoms_from_cube)()
     assert await chris.search_pacsfiles(pacs_identifier=config.AE_TITLE).count() == 0
+
     await asyncify(send_sample_dicom)()
-    assert await chris.search_pacsfiles(pacs_identifier=config.AE_TITLE).count() > 0
+
+    elapsed = 0
+    while await chris.search_pacsfiles(pacs_identifier=config.AE_TITLE).count() == 0:
+        await asyncio.sleep(0.25)
+        elapsed += 0.25
+        if elapsed > 5:
+            raise pytest.fail(f"DICOM sent from AET={config.AE_TITLE} to oxidicom did not appear in the CUBE at {chris.url}.")
 
 
 def clear_dicoms_from_cube():
@@ -81,14 +87,12 @@ def send_sample_dicom():
     """
     See https://pydicom.github.io/pynetdicom/stable/examples/storage.html#storage-scu
     """
-    # from pynetdicom import debug_logger
-    # debug_logger()
 
     ds = pydicom.dcmread(get_sample_dicom())
     ae = pynetdicom.AE(ae_title="SERIETEST")
     ae.add_requested_context(ds.file_meta.MediaStorageSOPClassUID)
     assoc = ae.associate(
-        config.OXIDICOM_ADDRESS, config.OXIDICOM_PORT, ae_title=config.OXIDICOM_AET
+        config.OXIDICOM_HOST, config.OXIDICOM_PORT, ae_title=config.OXIDICOM_AET
     )
     if not assoc.is_established:
         raise pytest.fail("Could not establish association with oxidicom")

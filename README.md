@@ -42,8 +42,23 @@ docker compose --profile hasura up -d
 
 ### Testing
 
+Run unit tests on-the-metal:
+
 ```shell
 rye run pytest
+```
+
+End-to-end tests require _SERIE_ to run in the same docker network as _CUBE_ and Hasura,
+so we need to run them with Docker Compose:
+
+```shell
+docker compose run test
+```
+
+Coverage data can be obtained from the stopped test container:
+
+```shell
+docker cp "$(docker compose ps -a test -q | tail -n 1):/app/coverage.xml" coverage.xml
 ```
 
 ### Deployment
