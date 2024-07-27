@@ -24,6 +24,7 @@ docker cp "$(docker compose ps -a test -q | head -n 1):/app/coverage.xml" covera
 sed -i -e "s#/app/serie#$PWD/src/serie#" coverage.xml
 '
 """
+clean = "docker compose --profile test down -v --remove-orphans"
 
 [build-system]
 requires = ["hatchling"]
