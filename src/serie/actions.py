@@ -13,8 +13,12 @@ from serie.models import (
     OxidicomCustomMetadata,
     ChrisRunnableRequest,
     PacsFile,
+    OxidicomCustomMetadataField,
 )
 from serie.series_file_pair import DicomSeriesFilePair
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -34,7 +38,14 @@ class ClientActions:
         """
         if (ocm := OxidicomCustomMetadata.from_pacsfile(data)) is None:
             return None
-        if (pacs_file := await self._get_first_dicom_of(ocm)) is None:
+        if ocm.name != OxidicomCustomMetadataField.attempted_push_count:
+            return None
+        if (pacs_file := await self._get_first_dicom_of(ocm)) is None:  # pragma: no cover
+            logger.warning(
+                f"Received the file {data.fname} with SeriesInstanceUID={data.series_instance_uid}, "
+                "but no file belonging to this DICOM series is found in CUBE. "
+                "(This is a bug in oxidicom, or worse.)"
+            )
             return None
         return DicomSeriesFilePair(ocm, pacs_file)
 

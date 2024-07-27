@@ -24,6 +24,29 @@ client = TestClient(app)
 _EXAMPLE_DICOM_URL = "https://cube-for-testing-chrisui.apps.shift.nerc.mghpcc.org/api/v1/files/570/0156-1.3.12.2.1107.5.2.19.45152.2013030808105683775785575.dcm"
 _AE_TITLE = "SERIETESTOTHER"
 
+
+def _ocm_for_example(protocol_name: str):
+    return PacsFile(
+        id=500,
+        ProtocolName=protocol_name,
+        PatientName="",
+        PatientSex="",
+        AccessionNumber="",
+        PatientAge=None,
+        creation_date=datetime.datetime(2023, 1, 20),
+        pacs_id=2,
+        PatientBirthDate=None,
+        PatientID="1449c1d",
+        StudyDate=datetime.datetime(2013, 3, 8),
+        Modality="",
+        fname=f"SERVICES/PACS/org.fnndsc.oxidicom/SERVICES/PACS/{_AE_TITLE}/1449c1d-anonymized-20090701/MR-Brain_w_o_Contrast-98edede8b2-20130308/00005-SAG_MPRAGE_220_FOV-a27cf06/01J3V1NANC16JHR3XA8S43CCZY/OxidicomAttemptedPushCount=192",
+        StudyDescription="",
+        SeriesDescription="192",
+        SeriesInstanceUID="1.3.12.2.1107.5.2.19.45152.2013030808061520200285270.0.0.0",
+        StudyInstanceUID="1.2.840.113845.11.1000000001785349915.20130308061609.6346698",
+    )
+
+
 @pytest.mark.e2e
 @pytest.mark.parametrize(
     "explanation, data",
@@ -44,28 +67,25 @@ _AE_TITLE = "SERIETESTOTHER"
             ),
         ),
         (
+            "Should do nothing when receiving the NumberOfSeriesRelatedInstances=* file",
+            DicomSeriesPayload(
+                hasura_id="8765-4321",
+                data=_ocm_for_example("NumberOfSeriesRelatedInstances"),
+                match=[
+                    DicomSeriesMatcher(
+                        tag="StudyDescription",
+                        regex=r".*",
+                    )
+                ],
+                jobs=[ChrisRunnableRequest(runnable_type="plugin", name="pl-dcm2niix")],
+                feed_name_template="I should not be created",
+            ),
+        ),
+        (
             "Should do nothing when receiving a series that does not match the specified matcher",
             DicomSeriesPayload(
                 hasura_id="8765-4321",
-                data=PacsFile(
-                    id=500,
-                    ProtocolName="SAG MPRAGE 220 FOV",
-                    PatientName="anonymized",
-                    PatientSex="M",
-                    AccessionNumber="98edede8b2",
-                    PatientAge=1095.72,
-                    creation_date=datetime.datetime(2023, 1, 20),
-                    pacs_id=2,
-                    PatientBirthDate=datetime.datetime(2009, 7, 1),
-                    PatientID="1449c1d",
-                    StudyDate=datetime.datetime(2013, 3, 8),
-                    Modality="MR",
-                    fname=f"SERVICES/PACS/org.fnndsc.oxidicom/SERVICES/PACS/{_AE_TITLE}/1449c1d-anonymized-20090701/MR-Brain_w_o_Contrast-98edede8b2-20130308/00005-SAG_MPRAGE_220_FOV-a27cf06/01J3V1NANC16JHR3XA8S43CCZY/OxidicomAttemptedPushCount=192",
-                    StudyDescription="MR-Brain w/o Contrast",
-                    SeriesDescription="SAG MPRAGE 220 FOV",
-                    SeriesInstanceUID="1.3.12.2.1107.5.2.19.45152.2013030808061520200285270.0.0.0",
-                    StudyInstanceUID="1.2.840.113845.11.1000000001785349915.20130308061609.6346698",
-                ),
+                data=_ocm_for_example("OxidicomAttemptedPushCount"),
                 match=[
                     DicomSeriesMatcher(
                         tag="SeriesDescription",

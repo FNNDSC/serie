@@ -16,6 +16,7 @@ class DicomSeriesMetadataName(enum.Enum):
     Modality = "Modality"
     ProtocolName = "ProtocolName"
     StudyInstanceUID = "StudyInstanceUID"
+    StudyDescription = "StudyDescription"
     SeriesInstanceUID = "SeriesInstanceUID"
     SeriesDescription = "SeriesDescription"
     pacs_identifier = "pacs_identifier"
