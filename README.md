@@ -1,5 +1,8 @@
 # SERIE -- _ChRIS_
 
+[![Tests](https://github.com/FNNDSC/serie/actions/workflows/test.yml/badge.svg)](https://github.com/FNNDSC/serie/actions/workflows/test.yml)
+[![codecov](https://codecov.io/gh/FNNDSC/serie/graph/badge.svg?token=PU0WZLNL02)](https://codecov.io/gh/FNNDSC/serie)
+
 The _Specific Endpoints for Research Integration Events_, or _SERIE_,
 is a [FastAPI](https://fastapi.tiangolo.com/) application which defines
 the business logic of event-driven _ChRIS_ use cases. E.g. it handles
