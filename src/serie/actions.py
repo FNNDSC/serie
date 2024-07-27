@@ -6,7 +6,7 @@ from aiochris.models import Plugin, Feed, PACSFile, PluginInstance
 from aiochris.types import ChrisURL
 
 from serie.clients import get_plugin, get_client
-from serie.feed_name_template import ATTRIBUTE_NAMES
+from serie.dicom_series_metadata import DicomSeriesMetadataName
 from serie.models import OxidicomCustomMetadata, ChrisRunnableRequest
 
 
@@ -99,6 +99,6 @@ def _feed_name_template_variables(oxm_file: OxidicomCustomMetadata, dicom: PACSF
     Create a dict of values which can be used in a feed name template.
     """
     values = {}
-    for name in ATTRIBUTE_NAMES:
-        values[name] = getattr(dicom, name, None) or getattr(oxm_file, name)
+    for name in DicomSeriesMetadataName:
+        values[name.value] = getattr(dicom, name, None) or getattr(oxm_file, name)
     return values

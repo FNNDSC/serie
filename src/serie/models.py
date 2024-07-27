@@ -4,7 +4,7 @@ import re
 
 from pydantic import BaseModel, ConfigDict, NonNegativeInt, PastDatetime, Field
 
-from serie.feed_name_template import ATTRIBUTE_NAMES
+from serie.dicom_series_metadata import DicomSeriesMetadataName
 
 
 class PacsFile(BaseModel):
@@ -129,6 +129,20 @@ class ChrisRunnableRequest(BaseModel):
     params: dict[str, int | float | bool | str] = Field(title="Plugin parameters")
 
 
+class DicomSeriesMatcher(BaseModel):
+    """
+    A regular expression to be applied to a DICOM series metadata field.
+    """
+
+    tag: DicomSeriesMetadataName = Field(title="Tag of field to match")
+    regex: re.Pattern = Field(
+        title="Regular expression matching the value", examples=[r".*(Chest CT).*"]
+    )
+    case_sensitive: bool = Field(
+        default=False, title="Perform case-sensitive regular expression matching."
+    )
+
+
 class DicomSeriesPayload(BaseModel):
     """
     The payload sent from Hasura each time a row is inserted into the ``pacsfiles_pacsfile`` table.
@@ -139,6 +153,7 @@ class DicomSeriesPayload(BaseModel):
     hasura_id: str = Field(title="ID of event from Hasura")
 
     data: PacsFile = Field(title="The inserted DICOM file metadata")
+    match: DicomSeriesMatcher = Field(title="Which DICOM series to include")
     jobs: frozenset[ChrisRunnableRequest] = Field(
         title="Plugins or pipelines to run on the series data"
     )
@@ -146,7 +161,7 @@ class DicomSeriesPayload(BaseModel):
         title="Template for how to create the feed name",
         description=(
             "Uses the [Python string formatting](https://docs.python.org/3/library/string.html#formatstrings) syntax. "
-            f"Available variables include: {','.join(ATTRIBUTE_NAMES)}"
+            f"Available variables include: {','.join(n.value for n in DicomSeriesMetadataName)}"
             "\nKeep in mind that there is a 200-character limit on feed names."
         ),
         examples=[
