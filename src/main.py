@@ -1,32 +1,48 @@
-from fastapi import FastAPI
-from pydantic import BaseModel
-from serie.global_client import pl_dircopy as get_pl_dircopy, client_oncelock as get_client
-import os.path
+from typing import Optional, Annotated
 
-app = FastAPI()
+from aiochris.types import FeedUrl
+from fastapi import FastAPI, Response, status, Header
 
+from serie import (
+    DicomSeriesPayload,
+    get_settings,
+    BadAuthorizationError,
+    ClientActions,
+    __version__,
+)
+from serie.models import OxidicomCustomMetadata
 
-class ReceivedDicom(BaseModel):
-    fname: str
-    series_instance_uid: str
-    protocol_name: str
-
-
-@app.post("/handle_dicom/")
-async def handle_dicom(dicom: ReceivedDicom) -> str:
-    if dicom.protocol_name != 'OxidicomAttemptedPushCount':
-        return 'SKIPPED'
-
-    client = await get_client()
-    a_series_file = await client.search_pacsfiles(SeriesInstanceUID=dicom.series_instance_uid).first()
-    series_dir = os.path. dirname(a_series_file)
-
-    pl_dircopy = await get_pl_dircopy()
-    plinst = await pl_dircopy.create_instance(dir=series_dir)
-    feed = await plinst.get_feed()
-    await feed.set(name=f'Auto-event for "{os.path.basename(dicom.fname)}"')
-
-    await plinst.attach_pipeline(...)
-    return "OK"
+app = FastAPI(
+    title="Specific Endpoints for Research Integration Events",
+    contact={
+        "name": "FNNDSC",
+        "url": "https://chrisproject.org",
+        "email": "Newborn_FNNDSCdev-dl@childrens.harvard.edu",
+    },
+    version=__version__,
+)
 
 
+@app.post("/dicom_series/")
+async def dicom_series(
+    payload: DicomSeriesPayload,
+    authorization: Annotated[str, Header()],
+    response: Response,
+) -> Optional[FeedUrl]:
+    """
+    Create *ChRIS* plugin instances and/or workflows on DICOM series data when an entire DICOM series is received.
+    """
+    if (oxm_file := OxidicomCustomMetadata.from_pacsfile(payload.data)) is None:
+        response.status_code = status.HTTP_204_NO_CONTENT
+        return None
+
+    settings = get_settings()
+    actions = ClientActions(auth=authorization, url=settings.chris_url)
+    try:
+        feed = await actions.create_analysis(
+            oxm_file, payload.jobs, payload.feed_name_template
+        )
+    except BadAuthorizationError as e:
+        response.status_code = status.HTTP_401_UNAUTHORIZED
+        return None
+    return feed.url

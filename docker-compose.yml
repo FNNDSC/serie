@@ -1,6 +1,6 @@
-# Run SERIE in development mode in an existing miniChRIS network.
 
 services:
+  # Run SERIE in development mode in an existing miniChRIS network.
   dev:
     build:
       context: .
@@ -12,8 +12,33 @@ services:
     networks:
       minichris-local:
         aliases:
-          - poc.handler.chris
-
+          - dev.serie
+  # End-to-end testing
+  test:
+    build:
+      context: .
+      args:
+        REQUIREMENTS_FILE: requirements-dev.lock
+    command: pytest --color=yes --run-e2e --cov=serie --cov-report=xml
+    working_dir: /app
+    volumes:
+      # /app is a volume and the source code files are binded as subdirectories
+      # instead of directly mounting `.:/app` so that pytest and coverage can
+      # write temporary files to /app
+      - test:/app
+      - ./src/serie:/app/serie:ro
+      - ./tests:/app/tests:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      CHRIS_URL: http://chris:8000/api/v1/
+    networks:
+      minichris-local:
+        aliases:
+          - test.serie
+    profiles:
+      - test
 networks:
   minichris-local:
     external: true
+volumes:
+  test:

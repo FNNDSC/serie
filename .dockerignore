@@ -2,6 +2,7 @@
 .gitignore
 .dockerignore
 .idea
+.venv
 Dockerfile
 docker-compose.yml
 README.md
