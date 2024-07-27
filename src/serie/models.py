@@ -3,7 +3,14 @@ from collections.abc import Sequence
 from typing import Literal, Optional, Self, ClassVar
 import re
 
-from pydantic import BaseModel, ConfigDict, NonNegativeInt, PastDatetime, Field
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    NonNegativeInt,
+    NonNegativeFloat,
+    PastDatetime,
+    Field,
+)
 
 from serie.dicom_series_metadata import DicomSeriesMetadataName
 
@@ -20,7 +27,7 @@ class PacsFile(BaseModel):
     patient_name: str = Field(alias="PatientName")
     patient_sex: Optional[str] = Field(alias="PatientSex")
     accession_number: str = Field(alias="AccessionNumber")
-    patient_age: Optional[NonNegativeInt] = Field(alias="PatientAge")
+    patient_age: Optional[NonNegativeFloat] = Field(alias="PatientAge")
     creation_date: PastDatetime = Field()
     pacs_id: NonNegativeInt
     patient_birth_date: Optional[PastDatetime] = Field(alias="PatientBirthDate")
@@ -160,7 +167,9 @@ class DicomSeriesPayload(BaseModel):
     hasura_id: str = Field(title="ID of event from Hasura")
 
     data: PacsFile = Field(title="The inserted DICOM file metadata")
-    match: Sequence[DicomSeriesMatcher] = Field(title="Which DICOM series to include")
+    match: Sequence[DicomSeriesMatcher] = Field(
+        title="Which DICOM series to include. Conditions are joined by AND."
+    )
     jobs: Sequence[ChrisRunnableRequest] = Field(
         title="Plugins or pipelines to run on the series data"
     )

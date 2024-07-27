@@ -76,7 +76,9 @@ async def _start_test(chris: ChrisClient):
     await asyncify(clear_dicoms_from_cube)(config.AE_TITLE)
     assert await chris.search_pacsfiles(pacs_identifier=config.AE_TITLE).count() == 0
 
-    await asyncify(download_and_send_dicom)(config.EXAMPLE_DOWNLOAD_URL, config.AE_TITLE)
+    await asyncify(download_and_send_dicom)(
+        config.EXAMPLE_DOWNLOAD_URL, config.AE_TITLE
+    )
 
     elapsed = 0
     while await chris.search_pacsfiles(pacs_identifier=config.AE_TITLE).count() == 0:

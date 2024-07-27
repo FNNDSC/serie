@@ -1,4 +1,5 @@
 import enum
+from typing import TypedDict
 
 
 class DicomSeriesMetadataName(enum.Enum):
@@ -19,3 +20,12 @@ class DicomSeriesMetadataName(enum.Enum):
     SeriesDescription = "SeriesDescription"
     pacs_identifier = "pacs_identifier"
     series_dir = "series_dir"
+
+
+DicomSeriesMetadata = TypedDict(
+    "DicomSeriesMetadata",
+    {name.value: None | bool | int | float | str for name in DicomSeriesMetadataName},
+)
+"""
+A :class:`dict` with the keys of :class:`DicomSeriesMetadataName`.
+"""

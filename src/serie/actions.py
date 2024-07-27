@@ -1,13 +1,20 @@
 import asyncio
+import asyncio
 import dataclasses
 from collections.abc import Iterable, Sequence
+from typing import Optional
 
-from aiochris.models import Plugin, Feed, PACSFile, PluginInstance
+import aiochris.models
+from aiochris.models import Plugin, Feed, PluginInstance
 from aiochris.types import ChrisURL
 
 from serie.clients import get_plugin, get_client
-from serie.dicom_series_metadata import DicomSeriesMetadataName
-from serie.models import OxidicomCustomMetadata, ChrisRunnableRequest
+from serie.models import (
+    OxidicomCustomMetadata,
+    ChrisRunnableRequest,
+    PacsFile,
+)
+from serie.series_file_pair import DicomSeriesFilePair
 
 
 @dataclasses.dataclass(frozen=True)
@@ -19,9 +26,21 @@ class ClientActions:
     auth: str | None
     url: ChrisURL
 
+    async def resolve_series(self, data: PacsFile) -> Optional[DicomSeriesFilePair]:
+        """
+        Check whether the given PACSFile is a "OxidicomAttemptedPushCount=*" file
+        (which signifies that the reception of a DICOM series is complete). If so,
+        get one of the DICOM instances of the series from *CUBE*.
+        """
+        if (ocm := OxidicomCustomMetadata.from_pacsfile(data)) is None:
+            return None
+        if (pacs_file := await self._get_first_dicom_of(ocm)) is None:
+            return None
+        return DicomSeriesFilePair(ocm, pacs_file)
+
     async def create_analysis(
         self,
-        oxm_file: OxidicomCustomMetadata,
+        series: DicomSeriesFilePair,
         runnables_request: Iterable[ChrisRunnableRequest],
         feed_name_template: str,
     ) -> Feed:
@@ -35,13 +54,14 @@ class ClientActions:
         pl_dircopy, pl_unstack_folders, plugins = await self._get_plugins(
             runnables_request
         )
-        dircopy_inst = await pl_dircopy.create_instance(dir=oxm_file.series_dir)
+        dircopy_inst = await pl_dircopy.create_instance(dir=series.series_dir)
         root_inst = await pl_unstack_folders.create_instance(previous=dircopy_inst)
         branches = (
             plugin.create_instance(previous=root_inst, **req.params)
             for plugin, req in zip(plugins, runnables_request)
         )
-        set_feed_name = self._set_feed_name(oxm_file, dircopy_inst, feed_name_template)
+        feed_name = _expand_variables(feed_name_template, series)
+        set_feed_name = self._set_feed_name(dircopy_inst, feed_name)
         feed, *_ = await asyncio.gather(set_feed_name, *branches)
         return feed
 
@@ -63,42 +83,32 @@ class ClientActions:
         pl_dircopy, pl_unstack_folders, *others = await asyncio.gather(*plugin_requests)  # noqa
         return pl_dircopy, pl_unstack_folders, others
 
-    async def _set_feed_name(
-        self, oxm_file: OxidicomCustomMetadata, plinst: PluginInstance, template: str
-    ) -> Feed:
-        """
-        Set the name of the plugin instance's feed using the given template and the related DICOM series.
-        """
-        feed, dicom = await asyncio.gather(
-            plinst.get_feed(), self._get_first_dicom_of(oxm_file)
-        )
-        name = template.format(**_feed_name_template_variables(oxm_file, dicom))
-        return await feed.set(name=name)
-
-    async def _get_first_dicom_of(self, oxm_file: OxidicomCustomMetadata) -> PACSFile:
+    async def _get_first_dicom_of(
+        self, oxm_file: OxidicomCustomMetadata
+    ) -> Optional[aiochris.models.PACSFile]:
         """
         Get an arbitrary DICOM file belonging to the series represented by ``oxm_file``.
         """
         chris = await get_client(self.url, self.auth)
-        dicom_file = await chris.search_pacsfiles(
+        return await chris.search_pacsfiles(
             pacs_identifier=oxm_file.pacs_identifier,
             PatientID=oxm_file.patient_id,
             StudyInstanceUID=oxm_file.study_instance_uid,
             SeriesInstanceUID=oxm_file.series_instance_uid,
         ).first()
-        if dicom_file is None:
-            raise ValueError(
-                "DICOM series not found. It is likely the given oxidicom custom file is invalid.",
-                oxm_file,
-            )
-        return dicom_file
+
+    @staticmethod
+    async def _set_feed_name(dircopy_inst: PluginInstance, name: str) -> Feed:
+        """
+        Get the feed of the given plugin instance, and set its feed name.
+        """
+        feed = await dircopy_inst.get_feed()
+        await feed.set(name=name)
+        return feed
 
 
-def _feed_name_template_variables(oxm_file: OxidicomCustomMetadata, dicom: PACSFile):
+def _expand_variables(template: str, series: DicomSeriesFilePair) -> str:
     """
-    Create a dict of values which can be used in a feed name template.
+    Expand the value of variables in ``template`` using field values from ``series``.
     """
-    values = {}
-    for name in DicomSeriesMetadataName:
-        values[name.value] = getattr(dicom, name, None) or getattr(oxm_file, name)
-    return values
+    return template.format(**series.to_dict())
