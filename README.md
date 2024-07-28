@@ -59,6 +59,11 @@ and Hasura up, then run pytest and _SERIE_ using Docker Compose:
 docker compose run --use-aliases test
 ```
 
-### Deployment
+### Deployment Notes
 
-See https://github.com/FNNDSC/charts
+- The only environment variable needed by _SERIE_ is `CHRIS_URL`, which should be set
+  to the API URL of _CUBE_ e.g. `https://cube.chrisproject.org/api/v1/`
+- The configuration of _SERIE_ happens in Hasura. You can use the Hasura console to
+  edit the configuration, or use [hasura-cli](https://hasura.io/docs/latest/hasura-cli/overview/)
+  configure _SERIE_ via Hasura metadata YAML files. See the example in
+  [hasura/.../public_pacsfiles_pacsfile.yaml](hasura/metadata/databases/chris/tables/public_pacsfiles_pacsfile.yaml).
