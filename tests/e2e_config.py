@@ -16,6 +16,4 @@ EXPECTED_FEED_NAME = "SERIE test - SeriesInstanceUID=1.2.276.0.7230010.3.1.3.832
 
 CHRIS_ADMIN_USERNAME = "chris"
 CHRIS_ADMIN_PASSWORD = "chris1234"
-PLUGIN_URLS = [
-    "https://cube.chrisproject.org/api/v1/plugins/9/"  # pl-dcm2niix
-]
+PLUGINS = {"pl-dcm2niix": "https://cube.chrisproject.org/api/v1/plugins/9/"}

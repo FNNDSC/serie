@@ -26,7 +26,10 @@ async def test_e2e(server: UvicornTestServer, chris: ChrisClient):
         asyncify(_configure_hasura)(), _delete_feeds(chris), _register_plugins()
     )
     await _start_test(chris)
-    await _poll_for_feed(chris, config.EXPECTED_FEED_NAME)
+    feed = await _poll_for_feed(chris, config.EXPECTED_FEED_NAME)
+    plinsts = await acollect(chris.plugin_instances(feed_id=feed.id))
+    ran_plugins = set(p.plugin_name for p in plinsts)
+    assert ran_plugins == {"pl-dircopy", "pl-unstack-folders", *config.PLUGINS.keys()}
 
 
 @pytest_asyncio.fixture
@@ -170,6 +173,6 @@ async def _register_plugins():
         await asyncio.gather(
             *(
                 a.register_plugin_from_store(url, [compute_resource.name])
-                for url in config.PLUGIN_URLS
+                for url in config.PLUGINS.values()
             )
         )
