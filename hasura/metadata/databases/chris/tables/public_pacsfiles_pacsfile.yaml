@@ -41,7 +41,10 @@ event_triggers:
             "jobs": [
               {
                 "type": "plugin",
-                "name": "pl-dcm2niix"
+                "name": "pl-dcm2niix",
+                "params": {
+                  "z": "y"
+                }
               }
             ],
             "feed_name_template": "SERIE test - SeriesInstanceUID={SeriesInstanceUID}"

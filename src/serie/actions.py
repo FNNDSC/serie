@@ -1,7 +1,7 @@
 import asyncio
 import dataclasses
 import logging
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 from typing import Optional
 
 import aiochris.models
@@ -27,6 +27,25 @@ _HARDCODED_RUNNABLES = [
 """
 The runnables which are needed to create feeds.
 """
+
+
+@dataclasses.dataclass(frozen=True)
+class FoundPlugin:
+    """
+    A plugin which was found in CUBE, and the runnable request which requested it.
+    """
+
+    plugin: Plugin
+    runnable: ChrisRunnableRequest
+
+    async def create_instance(self, previous: PluginInstance) -> PluginInstance:
+        """
+        Run the plugin with the runnable's parameters on the data from the ``previous`` parameter.
+        """
+        # TODO warning:
+        #  - unrecognized parameters are silently ignored.
+        #  - unhandled error if parameter value is wrong type.
+        return await self.plugin.create_instance(previous, **self.runnable.params)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -75,10 +94,7 @@ class ClientActions:
         )
         dircopy_inst = await pl_dircopy.create_instance(dir=series.series_dir)
         root_inst = await pl_unstack_folders.create_instance(previous=dircopy_inst)
-        branches = (
-            plugin.create_instance(previous=root_inst, **req.params)
-            for plugin, req in zip(plugins, runnables_request)
-        )
+        branches = (plugin.create_instance(root_inst) for plugin in plugins)
         feed_name = _expand_variables(feed_name_template, series)
         set_feed_name = self._set_feed_name(dircopy_inst, feed_name)
         feed, *_ = await asyncio.gather(set_feed_name, *branches)
@@ -86,7 +102,7 @@ class ClientActions:
 
     async def _get_plugins(
         self, runnables_request: Sequence[ChrisRunnableRequest]
-    ) -> tuple[Plugin, Plugin, Sequence[Plugin]]:
+    ) -> tuple[Plugin, Plugin, Sequence[FoundPlugin]]:
         """
         Get the plugins pl-dircopy, pl-unstack-folders, and any other plugins requested.
 
@@ -111,7 +127,8 @@ class ClientActions:
         if len(missing_plugins) > 0:
             raise InvalidRunnablesError(missing_plugins)
         pl_dircopy, pl_unstack_folders, *others = plugins  # noqa
-        return pl_dircopy, pl_unstack_folders, others
+        found_plugins = [FoundPlugin(p, r) for p, r in zip(others, runnables_request)]
+        return pl_dircopy, pl_unstack_folders, found_plugins
 
     async def _get_first_dicom_of(
         self, oxm_file: OxidicomCustomMetadata

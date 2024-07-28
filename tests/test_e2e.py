@@ -8,7 +8,7 @@ import pytest_asyncio
 import uvicorn
 from aiochris import ChrisClient, ChrisAdminClient, acollect
 from aiochris.errors import IncorrectLoginError
-from aiochris.models import Feed
+from aiochris.models import Feed, PluginInstance
 from asyncer import asyncify
 from fastapi import FastAPI
 
@@ -30,6 +30,11 @@ async def test_e2e(server: UvicornTestServer, chris: ChrisClient):
     plinsts = await acollect(chris.plugin_instances(feed_id=feed.id))
     ran_plugins = set(p.plugin_name for p in plinsts)
     assert ran_plugins == {"pl-dircopy", "pl-unstack-folders", *config.PLUGINS.keys()}
+    plinst = next(filter(lambda p: p.plugin_name == "pl-dcm2niix", plinsts))
+    params = await acollect(plinst.get_parameters())
+    assert len(params) == 1
+    assert params[0].param_name == "z"
+    assert params[0].value == "y"
 
 
 @pytest_asyncio.fixture
