@@ -1,7 +1,7 @@
-from serie.router import router
+from serie.router import get_router
 from serie.__version__ import __version__
 
 __all__ = [
-    "router",
+    "get_router",
     "__version__",
 ]

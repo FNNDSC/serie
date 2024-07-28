@@ -67,7 +67,7 @@ class OxidicomCustomMetadata(BaseModel):
 
     model_config = ConfigDict(frozen=True)
     name: OxidicomCustomMetadataField
-    value: int
+    value: int | Literal["unknown"]
     series_instance_uid: str
     study_instance_uid: str
     pacs_identifier: str
@@ -79,7 +79,7 @@ class OxidicomCustomMetadata(BaseModel):
 
     _FNAME_RE: ClassVar[re.Pattern] = re.compile(
         r"SERVICES/PACS/org.fnndsc.oxidicom/SERVICES/PACS/"
-        r"(?P<pacs_identifier>\w+)/(?P<series_dir_rel>.+?/.+?/.+?)/(?P<association_ulid>\w+?)/\w+=\d+"
+        r"(?P<pacs_identifier>\w+)/(?P<series_dir_rel>.+?/.+?/.+?)/(?P<association_ulid>\w+?)/\w+=((unknown)|(\d+))"
     )
 
     @classmethod
@@ -110,13 +110,13 @@ class OxidicomCustomMetadata(BaseModel):
     @classmethod
     def _parse_ocm_fname(cls, fname: str) -> tuple[str, str, str]:
         """
-        Parse a fname of an "oxidicom custom metadata" file.
-
-        :return: pacs_identifier and association_ulid
+        Parse the fname of an "oxidicom custom metadata" file.
         """
         match = cls._FNAME_RE.fullmatch(fname)
         if not match:
-            raise ValueError('Invalid fname of a "oxidicom custom metadata" file.')
+            raise ValueError(
+                f'Invalid fname of a "oxidicom custom metadata" file: {repr(fname)}'
+            )
         pacs_identifier = match.group("pacs_identifier")
         series_dir = f'SERVICES/PACS/{pacs_identifier}/{match.group("series_dir_rel")}'
         return pacs_identifier, series_dir, match.group("association_ulid")
@@ -140,6 +140,32 @@ class ChrisRunnableRequest(BaseModel):
     )
     params: dict[str, int | float | bool | str] = Field(
         title="Plugin parameters", default_factory=dict
+    )
+
+
+class InvalidRunnable(BaseModel):
+    """
+    Invalid requested plugins or pipelines.
+    """
+
+    runnable: ChrisRunnableRequest = Field(title="The requested plugin or pipeline.")
+    reason: str = Field(
+        title="Reason why the runnable is invalid.",
+        examples=[
+            "not found",
+            "`something` is not a valid parameter",
+            "`stuff` is not a valid argument for parameter `something`",
+        ],
+    )
+
+
+class InvalidRunnableResponse(BaseModel):
+    """
+    List of invalid requested plugins or pipelines.
+    """
+
+    errors: list[InvalidRunnable] = Field(
+        title="List of invalid requested plugins or pipelines."
     )
 
 

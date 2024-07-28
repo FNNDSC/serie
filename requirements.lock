@@ -10,7 +10,7 @@
 #   universal: false
 
 -e file:.
-aiochris==0.8.0
+aiochris==0.8.1
     # via serie
 aiohttp==3.9.5
     # via aiochris

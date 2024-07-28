@@ -1,0 +1,14 @@
+- name: chris
+  kind: postgres
+  configuration:
+    connection_info:
+      database_url:
+        connection_parameters:
+          database: chris
+          host: db
+          password: chris1234
+          port: 5432
+          username: chris
+      isolation_level: read-committed
+      use_prepared_statements: false
+  tables: "!include chris/tables/tables.yaml"

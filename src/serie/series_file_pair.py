@@ -25,7 +25,8 @@ class DicomSeriesFilePair:
         """
         values = {}
         for name in DicomSeriesMetadataName:
-            values[name.value] = getattr(self.pacs_file, name.value, None) or getattr(
-                self.ocm, name.value
-            )
+            if name == DicomSeriesMetadataName.series_dir:
+                values[name.value] = self.ocm.series_dir
+            else:
+                values[name.value] = getattr(self.pacs_file, name.value)
         return values

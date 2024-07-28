@@ -1,0 +1,53 @@
+table:
+  name: pacsfiles_pacsfile
+  schema: public
+object_relationships:
+  - name: pacsfiles_pac
+    using:
+      foreign_key_constraint_on: pacs_id
+event_triggers:
+  - name: dicom_received
+    definition:
+      enable_manual: false
+      insert:
+        columns: '*'
+    retry_conf:
+      interval_sec: 10
+      num_retries: 0
+      timeout_sec: 60
+    webhook: http://test.serie:8000
+    headers:
+      - name: Authorization
+        value: Basic c2VyaWU6c2VyaWUxMjM0
+    request_transform:
+      body:
+        action: transform
+        template: |-
+          {
+            "hasura_id": {{$body.id}},
+            "data": {{$body.event.data.new}},
+            "match": [
+              {
+                "tag": "StudyDescription",
+                "regex": ".*(Chest X-ray for COVID-19 Screening).*",
+                "case_sensitive": false
+              },
+              {
+                "tag": "SeriesDescription",
+                "regex": ".*(XR Posteroanterior).*",
+                "case_sensitive": false
+              }
+            ],
+            "jobs": [
+              {
+                "type": "plugin",
+                "name": "pl-dcm2niix"
+              }
+            ],
+            "feed_name_template": "SERIE test - SeriesInstanceUID={SeriesInstanceUID}"
+          }
+      method: POST
+      query_params: {}
+      template_engine: Kriti
+      url: '{{$base_url}}/dicom_series/'
+      version: 2

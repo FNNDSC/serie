@@ -2,7 +2,6 @@ import base64
 from typing import Optional
 
 import aiochris.errors
-import aiohttp
 import asyncstdlib
 from aiochris import ChrisClient
 from aiochris.errors import IncorrectLoginError
@@ -10,47 +9,64 @@ from aiochris.models import Plugin
 from aiochris.types import ChrisURL
 
 
-@asyncstdlib.lru_cache(maxsize=64)
-async def get_plugin(
-    url: ChrisURL, auth: Optional[str], name: str, version: Optional[str]
-) -> Optional[Plugin]:
+class Clients:
     """
-    Get a *ChRIS* plugin.
+    Helper functions for getting client objects with LRU caching.
 
-    :param url: *CUBE* url
-    :param auth: authorization header value
-    :param name: plugin name
-    :param version: plugin version
-    :raises BadAuthorizationError: if authorization header value is invalid or unauthorized.
+    N.B.: instances cannot be shared across async event loops.
     """
-    client: ChrisClient = await get_client(url, auth)
-    try:
-        return await client.search_plugins(name=name, version=version).first()
-    except aiochris.errors.UnauthorizedError as e:
-        raise BadAuthorizationError(
-            "401 response status when searching for plugins. Did the authorization token expire?"
-        )
 
+    @asyncstdlib.lru_cache(maxsize=64)
+    async def get_plugin(
+        self, url: ChrisURL, auth: Optional[str], name: str, version: Optional[str]
+    ) -> Optional[Plugin]:
+        """
+        Get a *ChRIS* plugin.
 
-@asyncstdlib.lru_cache(maxsize=8)
-async def get_client(url: ChrisURL, auth: Optional[str]) -> ChrisClient:
-    """
-    Get a client object.
+        :param url: *CUBE* url
+        :param auth: authorization header value
+        :param name: plugin name
+        :param version: plugin version
+        :raises BadAuthorizationError: if authorization header value is invalid or unauthorized.
+        """
+        client: ChrisClient = await self.get_client(url, auth)
+        if version is None:
+            search = client.search_plugins(name=name)
+        else:
+            search = client.search_plugins(name=name, version=version)
+        try:
+            return await search.first()
+        except aiochris.errors.UnauthorizedError as e:
+            raise BadAuthorizationError(
+                "401 response status when searching for plugins. Did the authorization token expire?"
+            )
 
-    :raises BadAuthorizationError: if authorization header value is invalid or unauthorized.
-    """
-    parsed_auth = _parse_auth(auth)
-    if isinstance(parsed_auth, str):
-        return await ChrisClient.from_token(url=url, token=parsed_auth)
-    username, password = parsed_auth
-    try:
-        return await ChrisClient.from_login(
-            url=url,
-            username=parsed_auth[0],
-            password=parsed_auth[1],
-        )
-    except IncorrectLoginError as e:
-        raise BadAuthorizationError(e.args)
+    @asyncstdlib.lru_cache(maxsize=8)
+    async def get_client(self, url: ChrisURL, auth: Optional[str]) -> ChrisClient:
+        """
+        Get a client object.
+
+        :raises BadAuthorizationError: if authorization header value is invalid or unauthorized.
+        """
+        parsed_auth = _parse_auth(auth)
+        if isinstance(parsed_auth, str):
+            return await ChrisClient.from_token(url=url, token=parsed_auth)
+        username, password = parsed_auth
+        try:
+            return await ChrisClient.from_login(
+                url=url,
+                username=parsed_auth[0],
+                password=parsed_auth[1],
+            )
+        except IncorrectLoginError as e:
+            raise BadAuthorizationError(e.args)
+
+    def clean(self):
+        """
+        Empty the cache.
+        """
+        self.get_client.cache_clear()
+        self.get_plugin.cache_clear()
 
 
 def _parse_auth(auth: Optional[str]) -> tuple[str, str] | str:
@@ -84,5 +100,4 @@ class BadAuthorizationError(Exception):
     """
     HTTP authorization header value could not be parsed.
     """
-
     pass

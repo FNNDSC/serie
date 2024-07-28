@@ -28,6 +28,8 @@ services:
       - test:/app
       - ./src/serie:/app/serie:ro
       - ./tests:/app/tests:ro
+      - ./hasura:/hasura:ro
+      - hasura-copy:/hasura_copy:rw
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
       CHRIS_URL: http://chris:8000/api/v1/
@@ -42,3 +44,5 @@ networks:
     external: true
 volumes:
   test:
+  hasura-copy:
+    name: hasura-copy

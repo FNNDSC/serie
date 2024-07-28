@@ -7,19 +7,16 @@ from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 
 import tests.e2e_config as config
-from serie import router
+from serie import get_router
+from serie.dicom_series_metadata import DicomSeriesMetadataName
 from serie.models import (
     PacsFile,
     DicomSeriesPayload,
     DicomSeriesMatcher,
-    ChrisRunnableRequest,
+    ChrisRunnableRequest, InvalidRunnableResponse,
 )
 from tests.examples import read_example
 from tests.helpers import download_and_send_dicom
-
-app = FastAPI(title=f"SERIE - test {os.path.basename(__file__)}")
-app.include_router(router)
-client = TestClient(app)
 
 _EXAMPLE_DICOM_URL = "https://cube-for-testing-chrisui.apps.shift.nerc.mghpcc.org/api/v1/files/570/0156-1.3.12.2.1107.5.2.19.45152.2013030808105683775785575.dcm"
 _AE_TITLE = "SERIETESTOTHER"
@@ -99,17 +96,48 @@ def _ocm_for_example(protocol_name: str):
     ),
 )
 def test_does_nothing(explanation, data):
-    assert post(data).status_code == status.HTTP_204_NO_CONTENT, explanation
+    res = post(data)
+    res.raise_for_status()
+    assert res.status_code == status.HTTP_204_NO_CONTENT, explanation
+
+
+@pytest.mark.e2e
+def test_catches_missing_plugins():
+    data = DicomSeriesPayload(
+        hasura_id="8765-4321",
+        data=_ocm_for_example("OxidicomAttemptedPushCount"),
+        match=[
+            DicomSeriesMatcher(
+                tag=DicomSeriesMetadataName.StudyDescription,
+                regex=r".*(Brain).*",
+                case_sensitive=False
+            ),
+            DicomSeriesMatcher(
+                tag=DicomSeriesMetadataName.Modality,
+                regex="MR",
+                case_sensitive=True
+            )
+        ],
+        jobs=[ChrisRunnableRequest(runnable_type="plugin", name="pl-i-do-not-exist", version="99")],
+        feed_name_template="I should not be created",
+    )
+    res = post(data)
+    assert res.status_code == status.HTTP_400_BAD_REQUEST
+    error = InvalidRunnableResponse.model_validate_json(res.content)
+    assert error.errors[0].runnable.name == "pl-i-do-not-exist"
+    assert error.errors[0].runnable.version == "99"
 
 
 def post(data: pydantic.BaseModel):
+    app = FastAPI(title=f"SERIE - test {os.path.basename(__file__)}")
+    app.include_router(get_router())
+    client = TestClient(app)
     res = client.post(
         "/dicom_series/",
         auth=(config.CHRIS_USERNAME, config.CHRIS_PASSWORD),
         content=data.model_dump_json(by_alias=True),
         headers={"Content-Type": "application/json"},
     )
-    res.raise_for_status()
     return res
 
 

@@ -56,7 +56,7 @@ First, run [miniChRIS-docker](https://github.com/FNNDSC/miniChRIS-docker) to get
 and Hasura up, then run pytest and _SERIE_ using Docker Compose:
 
 ```shell
-docker compose run test
+docker compose run --use-aliases test
 ```
 
 ### Deployment

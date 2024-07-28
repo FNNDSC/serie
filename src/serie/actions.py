@@ -1,6 +1,6 @@
 import asyncio
-import asyncio
 import dataclasses
+import logging
 from collections.abc import Iterable, Sequence
 from typing import Optional
 
@@ -8,17 +8,25 @@ import aiochris.models
 from aiochris.models import Plugin, Feed, PluginInstance
 from aiochris.types import ChrisURL
 
-from serie.clients import get_plugin, get_client
+from serie.clients import Clients
 from serie.models import (
     OxidicomCustomMetadata,
     ChrisRunnableRequest,
     PacsFile,
     OxidicomCustomMetadataField,
+    InvalidRunnable,
 )
 from serie.series_file_pair import DicomSeriesFilePair
-import logging
 
 logger = logging.getLogger(__name__)
+
+_HARDCODED_RUNNABLES = [
+    ChrisRunnableRequest(runnable_type="plugin", name="pl-dircopy"),
+    ChrisRunnableRequest(runnable_type="plugin", name="pl-unstack-folders"),
+]
+"""
+The runnables which are needed to create feeds.
+"""
 
 
 @dataclasses.dataclass(frozen=True)
@@ -29,6 +37,7 @@ class ClientActions:
 
     auth: str | None
     url: ChrisURL
+    clients: Clients
 
     async def resolve_series(self, data: PacsFile) -> Optional[DicomSeriesFilePair]:
         """
@@ -40,7 +49,9 @@ class ClientActions:
             return None
         if ocm.name != OxidicomCustomMetadataField.attempted_push_count:
             return None
-        if (pacs_file := await self._get_first_dicom_of(ocm)) is None:  # pragma: no cover
+        if (
+            pacs_file := await self._get_first_dicom_of(ocm)
+        ) is None:  # pragma: no cover
             logger.warning(
                 f"Received the file {data.fname} with SeriesInstanceUID={data.series_instance_uid}, "
                 "but no file belonging to this DICOM series is found in CUBE. "
@@ -59,9 +70,6 @@ class ClientActions:
         Create a feed containing ``data_dir`` and run all of ``runnable_request``.
         Set the name of the created feed using ``feed_name_template``.
         """
-        if any(req.runnable_type != "plugin" for req in runnables_request):
-            raise NotImplementedError("Only plugins are supported for now")
-
         pl_dircopy, pl_unstack_folders, plugins = await self._get_plugins(
             runnables_request
         )
@@ -77,21 +85,30 @@ class ClientActions:
         return feed
 
     async def _get_plugins(
-        self, runnables_request: Iterable[ChrisRunnableRequest]
+        self, runnables_request: Sequence[ChrisRunnableRequest]
     ) -> tuple[Plugin, Plugin, Sequence[Plugin]]:
         """
         Get the plugins pl-dircopy, pl-unstack-folders, and any other plugins requested.
+
+        :raises InvalidRunnablesError: if any plugins cannot be found in CUBE.
         """
-        plugin_specs = (
-            ("pl-dircopy", None),
-            ("pl-unstack-folders", None),
-            *((r.name, r.version) for r in runnables_request),
-        )
+        if any(req.runnable_type != "plugin" for req in runnables_request):
+            raise NotImplementedError("Only plugins are supported for now")
+
+        needed_runnables = _HARDCODED_RUNNABLES + list(runnables_request)
         plugin_requests = (
-            get_plugin(self.url, self.auth, name, version)
-            for name, version in plugin_specs
+            self.clients.get_plugin(self.url, self.auth, runnable.name, runnable.version)
+            for runnable in needed_runnables
         )
-        pl_dircopy, pl_unstack_folders, *others = await asyncio.gather(*plugin_requests)  # noqa
+        plugins = await asyncio.gather(*plugin_requests)
+        missing_plugins = [
+            InvalidRunnable(runnable=runnable, reason="plugin not found")
+            for runnable, plugin in zip(needed_runnables, plugins)
+            if plugin is None
+        ]
+        if len(missing_plugins) > 0:
+            raise InvalidRunnablesError(missing_plugins)
+        pl_dircopy, pl_unstack_folders, others = plugins  # noqa
         return pl_dircopy, pl_unstack_folders, others
 
     async def _get_first_dicom_of(
@@ -100,7 +117,7 @@ class ClientActions:
         """
         Get an arbitrary DICOM file belonging to the series represented by ``oxm_file``.
         """
-        chris = await get_client(self.url, self.auth)
+        chris = await self.clients.get_client(self.url, self.auth)
         return await chris.search_pacsfiles(
             pacs_identifier=oxm_file.pacs_identifier,
             PatientID=oxm_file.patient_id,
@@ -123,3 +140,12 @@ def _expand_variables(template: str, series: DicomSeriesFilePair) -> str:
     Expand the value of variables in ``template`` using field values from ``series``.
     """
     return template.format(**series.to_dict())
+
+
+class InvalidRunnablesError(Exception):
+    """
+    CUBE is missing requested plugins or pipelines.
+    """
+
+    def __init__(self, runnables: Sequence[InvalidRunnable]):
+        self.runnables = runnables

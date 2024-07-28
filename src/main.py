@@ -1,4 +1,4 @@
-from serie import router, __version__
+from serie import get_router, __version__
 from fastapi import FastAPI
 
 
@@ -11,4 +11,4 @@ app = FastAPI(
     },
     version=__version__,
 )
-app.include_router(router)
+app.include_router(get_router())

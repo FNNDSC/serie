@@ -1,17 +1,19 @@
 import asyncio
+import shutil
 import textwrap
 
 import docker
 import pytest
 import pytest_asyncio
 import uvicorn
-from aiochris import ChrisClient
+from aiochris import ChrisClient, acollect
 from aiochris.errors import IncorrectLoginError
+from aiochris.models import Feed
 from asyncer import asyncify
 from fastapi import FastAPI
 
 import tests.e2e_config as config
-from serie import router
+from serie import get_router
 from serie.settings import get_settings
 from tests.helpers import download_and_send_dicom
 from tests.uvicorn_test_server import UvicornTestServer
@@ -20,21 +22,23 @@ from tests.uvicorn_test_server import UvicornTestServer
 @pytest.mark.e2e
 @pytest.mark.asyncio
 async def test_e2e(server: UvicornTestServer, chris: ChrisClient):
+    await asyncio.gather(asyncify(_configure_hasura)(), _delete_feeds(chris))
     await _start_test(chris)
+    await _poll_for_feed(chris, config.EXPECTED_FEED_NAME)
 
 
 @pytest_asyncio.fixture
 async def server() -> UvicornTestServer:
     app = FastAPI(title="SERIE TEST")
-    app.include_router(router)
+    app.include_router(get_router())
     uvicorn_config = uvicorn.Config(
         app=app,
         host="0.0.0.0",
         port=config.SERIE_PORT,
         # N.B. uvicorn wants to create its own async event loop.
         # The default option causes some conflict with the outer loop.
-        # A workaround is to set loop="asyncio". This will surely
-        # break in the future!
+        # A workaround is to set loop="asyncio".
+        # This is surely to break even more in the future.
         loop="asyncio",
     )
     server = UvicornTestServer(uvicorn_config)
@@ -45,6 +49,16 @@ async def server() -> UvicornTestServer:
         raise
     finally:
         await server.stop()
+
+
+async def _poll_for_feed(chris: ChrisClient, name: str) -> Feed:
+    poll_count = 0
+    while (feed := await chris.search_feeds(name=name).first()) is None:
+        poll_count += 1
+        if poll_count >= config.MAX_POLL:
+            raise pytest.fail("Expected feed was not created.")
+        await asyncio.sleep(1)
+    return feed
 
 
 @pytest_asyncio.fixture
@@ -110,3 +124,29 @@ def clear_dicoms_from_cube(ae_title: str):
         """),
         ]
     )
+
+
+def _configure_hasura():
+    """
+    Copy the hasura metadata YAML files to the path where a shared volume is mounted,
+    then run the hasura-cli in a container with the copied YAML files.
+    """
+    # these paths, and the volume name "hasura-copy" are set in docker-compose.yml
+    shutil.copytree("/hasura", "/hasura_copy", dirs_exist_ok=True)
+    client = docker.from_env()
+    client.containers.run(
+        image=config.HASURA_CLI_IMAGE,
+        command=["hasura", "metadata", "apply"],
+        volumes={"hasura-copy": {"bind": "/config", "mode": "ro"}},
+        working_dir="/config",
+        network="minichris-local",
+    )
+
+
+async def _delete_feeds(chris: ChrisClient):
+    """
+    Delete all the feeds for the user.
+    """
+    all_feeds = await acollect(chris.search_feeds())
+    await asyncio.gather(*(feed.delete() for feed in all_feeds))
+    assert await chris.search_feeds().count() == 0
