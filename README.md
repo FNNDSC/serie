@@ -52,9 +52,9 @@ Run unit tests on-the-metal:
 rye run pytest
 ```
 
-End-to-end tests require _SERIE_ to run in the same docker network as _CUBE_ and Hasura.
-First, run [miniChRIS-docker](https://github.com/FNNDSC/miniChRIS-docker) to get _CUBE_
-and Hasura up, then run pytest and _SERIE_ using Docker Compose:
+Integration and end-to-end tests require _SERIE_ to run in the same docker network as _CUBE_ and Hasura.
+First, run [miniChRIS-docker](https://github.com/FNNDSC/miniChRIS-docker) to get _CUBE_ and Hasura up,
+then run pytest and _SERIE_ using Docker Compose:
 
 ```shell
 docker compose run --use-aliases test

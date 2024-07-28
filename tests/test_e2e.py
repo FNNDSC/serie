@@ -1,3 +1,7 @@
+"""
+End-to-end test where SERIE is called on by Hasura.
+"""
+
 import asyncio
 
 import pytest
@@ -15,7 +19,7 @@ from tests.helpers import download_and_send_dicom
 from tests.uvicorn_test_server import UvicornTestServer
 
 
-@pytest.mark.e2e
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_e2e(server: UvicornTestServer, chris: ChrisClient):
     await _send_and_wait_for_dicom(chris)

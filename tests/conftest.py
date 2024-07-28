@@ -7,18 +7,25 @@ import pytest
 
 def pytest_addoption(parser):
     parser.addoption(
-        "--run-e2e", action="store_true", default=False, help="run end-to-end tests"
+        "--run-integration",
+        action="store_true",
+        default=False,
+        help="run integration tests",
     )
 
 
 def pytest_configure(config):
-    config.addinivalue_line("markers", "e2e: mark test as end-to-end")
+    config.addinivalue_line(
+        "markers",
+        "integration: mark test as integration test, which may have service dependencies "
+        "on CUBE, hasura, oxidicom, etc.",
+    )
 
 
 def pytest_collection_modifyitems(config, items):
-    if config.getoption("--run-e2e"):
+    if config.getoption("--run-integration"):
         return
-    skip_e2e = pytest.mark.skip(reason="need --run-e2e option to run")
+    skip_integration = pytest.mark.skip(reason="need --run-integration option to run")
     for item in items:
-        if "e2e" in item.keywords:
-            item.add_marker(skip_e2e)
+        if "integration" in item.keywords:
+            item.add_marker(skip_integration)

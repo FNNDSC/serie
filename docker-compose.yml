@@ -19,7 +19,7 @@ services:
       context: .
       args:
         REQUIREMENTS_FILE: requirements-dev.lock
-    command: pytest --color=yes --code-highlight=yes --run-e2e
+    command: pytest --color=yes --code-highlight=yes --run-integration
     working_dir: /app
     volumes:
       # /app is a volume and the source code files are binded as subdirectories

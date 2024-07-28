@@ -1,3 +1,7 @@
+"""
+Integration tests to asser that SERIE correctly does nothing in situations where it should.
+"""
+
 import datetime
 import os.path
 
@@ -45,7 +49,7 @@ def _ocm_for_example(protocol_name: str):
     )
 
 
-@pytest.mark.e2e
+@pytest.mark.integration
 @pytest.mark.parametrize(
     "explanation, data",
     (
@@ -102,7 +106,7 @@ def test_does_nothing(explanation, data):
     assert res.status_code == status.HTTP_204_NO_CONTENT, explanation
 
 
-@pytest.mark.e2e
+@pytest.mark.integration
 def test_catches_missing_plugins():
     data = DicomSeriesPayload(
         hasura_id="8765-4321",
