@@ -1,5 +1,6 @@
 # SERIE -- _ChRIS_
 
+[![Version](https://img.shields.io/docker/v/fnndsc/serie?sort=semver)](https://hub.docker.com/r/fnndsc/serie)
 [![Tests](https://github.com/FNNDSC/serie/actions/workflows/test.yml/badge.svg)](https://github.com/FNNDSC/serie/actions/workflows/test.yml)
 [![codecov](https://codecov.io/gh/FNNDSC/serie/graph/badge.svg?token=PU0WZLNL02)](https://codecov.io/gh/FNNDSC/serie)
 
