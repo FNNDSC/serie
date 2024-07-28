@@ -1,4 +1,3 @@
-
 services:
   # Run SERIE in development mode in an existing miniChRIS network.
   dev:
@@ -15,7 +14,8 @@ services:
           - dev.serie
   # End-to-end testing
   test:
-    build:
+    image: localhost/fnndsc/serie:dev
+    build: &build
       context: .
       args:
         REQUIREMENTS_FILE: requirements-dev.lock
@@ -29,20 +29,49 @@ services:
       - ./src/serie:/app/serie:ro
       - ./tests:/app/tests:ro
       - ./hasura:/hasura:ro
-      - hasura-copy:/hasura_copy:rw
-      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       CHRIS_URL: http://chris:8000/api/v1/
     networks:
       minichris-local:
         aliases:
           - test.serie
+    # Setup and test reset functions should be described here
+    depends_on:
+      setup-hasura:
+        condition: service_completed_successfully
+      setup-and-reset-cube:
+        condition: service_completed_successfully
     profiles:
       - test
+
+  setup-hasura:
+    image: ghcr.io/fnndsc/hasura-cli:2.41.0
+    command: hasura metadata apply
+    volumes:
+      - ./hasura:/hasura:ro
+    working_dir: /hasura
+    networks:
+      minichris-local:
+    profiles:
+      - test
+  setup-and-reset-cube:
+    image: localhost/fnndsc/serie:dev
+    build: *build
+    volumes:
+      - ./src/serie:/app/serie:ro
+      - ./tests:/app/tests:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    working_dir: /app
+    command: python -m tests.e2e_setup_and_reset
+    environment:
+      CHRIS_URL: http://chris:8000/api/v1/
+    networks:
+      minichris-local:
+    profiles:
+      - test
+
 networks:
   minichris-local:
     external: true
 volumes:
   test:
-  hasura-copy:
-    name: hasura-copy
