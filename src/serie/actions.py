@@ -63,7 +63,7 @@ class ClientActions:
     async def create_analysis(
         self,
         series: DicomSeriesFilePair,
-        runnables_request: Iterable[ChrisRunnableRequest],
+        runnables_request: Sequence[ChrisRunnableRequest],
         feed_name_template: str,
     ) -> Feed:
         """
@@ -110,7 +110,7 @@ class ClientActions:
         ]
         if len(missing_plugins) > 0:
             raise InvalidRunnablesError(missing_plugins)
-        pl_dircopy, pl_unstack_folders, others = plugins  # noqa
+        pl_dircopy, pl_unstack_folders, *others = plugins  # noqa
         return pl_dircopy, pl_unstack_folders, others
 
     async def _get_first_dicom_of(
