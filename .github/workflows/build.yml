@@ -78,7 +78,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/amd64,linux/ppc64le,linux/arm64
+          platforms: linux/amd64,linux/arm64
           tags: ${{ steps.info.outputs.tags }}
           push: ${{ steps.info.outputs.push }}
       - name: Update DockerHub description
