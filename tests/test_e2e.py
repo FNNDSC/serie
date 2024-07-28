@@ -145,6 +145,7 @@ def _configure_hasura():
         volumes={"hasura-copy": {"bind": "/config", "mode": "ro"}},
         working_dir="/config",
         network="minichris-local",
+        auto_remove=True,
     )
 
 
