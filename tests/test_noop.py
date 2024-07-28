@@ -13,7 +13,8 @@ from serie.models import (
     PacsFile,
     DicomSeriesPayload,
     DicomSeriesMatcher,
-    ChrisRunnableRequest, InvalidRunnableResponse,
+    ChrisRunnableRequest,
+    InvalidRunnableResponse,
 )
 from tests.examples import read_example
 from tests.helpers import download_and_send_dicom
@@ -110,15 +111,17 @@ def test_catches_missing_plugins():
             DicomSeriesMatcher(
                 tag=DicomSeriesMetadataName.StudyDescription,
                 regex=r".*(Brain).*",
-                case_sensitive=False
+                case_sensitive=False,
             ),
             DicomSeriesMatcher(
-                tag=DicomSeriesMetadataName.Modality,
-                regex="MR",
-                case_sensitive=True
+                tag=DicomSeriesMetadataName.Modality, regex="MR", case_sensitive=True
+            ),
+        ],
+        jobs=[
+            ChrisRunnableRequest(
+                runnable_type="plugin", name="pl-i-do-not-exist", version="99"
             )
         ],
-        jobs=[ChrisRunnableRequest(runnable_type="plugin", name="pl-i-do-not-exist", version="99")],
         feed_name_template="I should not be created",
     )
     res = post(data)

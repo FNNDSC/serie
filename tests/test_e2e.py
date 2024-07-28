@@ -6,7 +6,7 @@ import docker
 import pytest
 import pytest_asyncio
 import uvicorn
-from aiochris import ChrisClient, acollect
+from aiochris import ChrisClient, ChrisAdminClient, acollect
 from aiochris.errors import IncorrectLoginError
 from aiochris.models import Feed
 from asyncer import asyncify
@@ -22,7 +22,9 @@ from tests.uvicorn_test_server import UvicornTestServer
 @pytest.mark.e2e
 @pytest.mark.asyncio
 async def test_e2e(server: UvicornTestServer, chris: ChrisClient):
-    await asyncio.gather(asyncify(_configure_hasura)(), _delete_feeds(chris))
+    await asyncio.gather(
+        asyncify(_configure_hasura)(), _delete_feeds(chris), _register_plugins()
+    )
     await _start_test(chris)
     await _poll_for_feed(chris, config.EXPECTED_FEED_NAME)
 
@@ -150,3 +152,24 @@ async def _delete_feeds(chris: ChrisClient):
     all_feeds = await acollect(chris.search_feeds())
     await asyncio.gather(*(feed.delete() for feed in all_feeds))
     assert await chris.search_feeds().count() == 0
+
+
+async def _register_plugins():
+    """
+    Register the plugins we need for this test.
+    """
+    settings = get_settings()
+    admin: ChrisAdminClient = await ChrisAdminClient.from_login(
+        url=settings.chris_url,
+        username=config.CHRIS_ADMIN_USERNAME,
+        password=config.CHRIS_ADMIN_PASSWORD,
+    )
+    async with admin as a:
+        compute_resource = await a.search_compute_resources().first()
+        assert compute_resource is not None
+        await asyncio.gather(
+            *(
+                a.register_plugin_from_store(url, [compute_resource.name])
+                for url in config.PLUGIN_URLS
+            )
+        )

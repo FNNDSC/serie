@@ -100,4 +100,5 @@ class BadAuthorizationError(Exception):
     """
     HTTP authorization header value could not be parsed.
     """
+
     pass

@@ -38,7 +38,9 @@ def get_router() -> APIRouter:
         Create *ChRIS* plugin instances and/or workflows on DICOM series data when an entire DICOM series is received.
         """
         settings = get_settings()
-        actions = ClientActions(auth=authorization, url=settings.chris_url, clients=clients)
+        actions = ClientActions(
+            auth=authorization, url=settings.chris_url, clients=clients
+        )
         if (series := await actions.resolve_series(payload.data)) is None:
             response.status_code = status.HTTP_204_NO_CONTENT
             return None

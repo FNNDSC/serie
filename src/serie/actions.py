@@ -97,7 +97,9 @@ class ClientActions:
 
         needed_runnables = _HARDCODED_RUNNABLES + list(runnables_request)
         plugin_requests = (
-            self.clients.get_plugin(self.url, self.auth, runnable.name, runnable.version)
+            self.clients.get_plugin(
+                self.url, self.auth, runnable.name, runnable.version
+            )
             for runnable in needed_runnables
         )
         plugins = await asyncio.gather(*plugin_requests)
