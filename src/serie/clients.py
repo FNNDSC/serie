@@ -61,13 +61,6 @@ class Clients:
         except IncorrectLoginError as e:
             raise BadAuthorizationError(e.args)
 
-    def clean(self):
-        """
-        Empty the cache.
-        """
-        self.get_client.cache_clear()
-        self.get_plugin.cache_clear()
-
 
 def _parse_auth(auth: Optional[str]) -> tuple[str, str] | str:
     """

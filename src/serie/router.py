@@ -1,4 +1,3 @@
-from contextlib import asynccontextmanager
 from typing import Annotated
 
 from aiochris.types import FeedUrl
@@ -20,13 +19,7 @@ def get_router() -> APIRouter:
     """
 
     clients = Clients()
-
-    @asynccontextmanager
-    async def lifespan():
-        yield
-        clients.clean()
-
-    router = APIRouter(lifespan=lifespan)
+    router = APIRouter()
 
     @router.post("/dicom_series/")
     async def dicom_series(
@@ -52,7 +45,7 @@ def get_router() -> APIRouter:
             feed = await actions.create_analysis(
                 series, payload.jobs, payload.feed_name_template
             )
-        except BadAuthorizationError as _e:
+        except BadAuthorizationError as _e:  # pragma: no cover
             response.status_code = status.HTTP_401_UNAUTHORIZED
             return None
         except InvalidRunnablesError as e:
