@@ -6,6 +6,10 @@ on:
     paths:
       - '.github/workflows/test.yml'
       - '**.py'
+      - 'Dockerfile'
+      - 'docker-compose.yml'
+      - 'requirements.lock'
+      - 'requirements-dev.lock'
   pull_request:
 
 jobs:
