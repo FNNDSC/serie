@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Spin up ChRIS
-        uses: FNNDSC/miniChRIS-docker@master
+        uses: FNNDSC/miniChRIS-docker@next
         with:
           # for testing, we need to create plugin instances and receive DICOM,
           # but we don't need the plugins to actually run.
