@@ -45,7 +45,7 @@ services:
       - test
 
   setup-hasura:
-    image: ghcr.io/fnndsc/hasura-cli:2.43.0
+    image: ghcr.io/fnndsc/hasura-cli:2.44.0
     command: hasura metadata apply
     volumes:
       - ./hasura:/hasura:ro
