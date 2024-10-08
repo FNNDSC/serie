@@ -30,7 +30,7 @@ services:
       - ./tests:/app/tests:ro
       - ./hasura:/hasura:ro
     environment:
-      CHRIS_URL: http://chris:8000/api/v1/
+      CHRIS_HOST: http://chris:8000
     networks:
       minichris-local:
         aliases:
@@ -45,7 +45,7 @@ services:
       - test
 
   setup-hasura:
-    image: ghcr.io/fnndsc/hasura-cli:2.41.0
+    image: ghcr.io/fnndsc/hasura-cli:2.43.0
     command: hasura metadata apply
     volumes:
       - ./hasura:/hasura:ro
@@ -64,7 +64,7 @@ services:
     working_dir: /app
     command: python -m tests.e2e_setup_and_reset
     environment:
-      CHRIS_URL: http://chris:8000/api/v1/
+      CHRIS_HOST: http://chris:8000
     networks:
       minichris-local:
     profiles:

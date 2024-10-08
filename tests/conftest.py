@@ -3,6 +3,9 @@ See https://docs.pytest.org/en/8.3.x/example/simple.html#control-skipping-of-tes
 """
 
 import pytest
+import pytest_asyncio
+
+from aiochris_oag import ApiClient, Configuration
 
 
 def pytest_addoption(parser):

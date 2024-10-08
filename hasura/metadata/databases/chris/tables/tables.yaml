@@ -1,2 +1,1 @@
-- "!include public_pacsfiles_pacs.yaml"
-- "!include public_pacsfiles_pacsfile.yaml"
+- "!include public_pacsfiles_pacsseries.yaml"

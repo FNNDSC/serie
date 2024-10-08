@@ -1,7 +1,6 @@
-import enum
-from collections.abc import Sequence
-from typing import Literal, Optional, Self, ClassVar
 import re
+from collections.abc import Sequence
+from typing import Literal, Optional, Any
 
 from pydantic import (
     BaseModel,
@@ -10,116 +9,37 @@ from pydantic import (
     NonNegativeFloat,
     PastDatetime,
     Field,
+    HttpUrl
 )
 
+from aiochris_oag import PatientSexEnum
 from serie.dicom_series_metadata import DicomSeriesMetadataName
 
 
-class PacsFile(BaseModel):
+class RawPacsSeries(BaseModel):
     """
-    A row from the `pacsfiles_pacsfile` table.
+    A row from the `pacsfiles_pacsseries` table.
     """
 
     model_config = ConfigDict(frozen=True)
 
     id: NonNegativeInt
-    protocol_name: str = Field(alias="ProtocolName")
-    patient_name: str = Field(alias="PatientName")
-    patient_sex: Optional[str] = Field(alias="PatientSex")
-    accession_number: str = Field(alias="AccessionNumber")
-    patient_age: Optional[NonNegativeFloat] = Field(alias="PatientAge")
     creation_date: PastDatetime = Field()
-    pacs_id: NonNegativeInt
-    patient_birth_date: Optional[PastDatetime] = Field(alias="PatientBirthDate")
     patient_id: str = Field(alias="PatientID")
+    patient_name: str = Field(alias="PatientName")
+    patient_birth_date: Optional[PastDatetime] = Field(alias="PatientBirthDate")
+    patient_age: Optional[NonNegativeFloat] = Field(alias="PatientAge")
+    patient_sex: Optional[PatientSexEnum] = Field(alias="PatientSex")
     study_date: PastDatetime = Field(alias="StudyDate")
+    accession_number: str = Field(alias="AccessionNumber")
     modality: str = Field(alias="Modality")
-    fname: str
-    study_description: str = Field(alias="StudyDescription")
-    series_description: str = Field(alias="SeriesDescription")
-    series_instance_uid: str = Field(alias="SeriesInstanceUID")
+    protocol_name: str = Field(alias="ProtocolName")
     study_instance_uid: str = Field(alias="StudyInstanceUID")
-
-
-@enum.unique
-class OxidicomCustomMetadataField(enum.StrEnum):
-    """
-    Field name of oxidicom custom metadata.
-    """
-
-    number_of_series_related_instances = "NumberOfSeriesRelatedInstances"
-    attempted_push_count = "OxidicomAttemptedPushCount"
-
-    @classmethod
-    def from_str(cls, s: str) -> Optional[Self]:
-        """
-        :return: a :class:`OxidicomCustomMetadataField` for the given value.
-        """
-        return next(filter(lambda x: x.value == s, cls), None)
-
-
-class OxidicomCustomMetadata(BaseModel):
-    """
-    A special row in the `pacsfiles_pacsfile` table described here:
-
-    https://github.com/FNNDSC/oxidicom/blob/v2.0.0/CUSTOM_SPEC.md
-    """
-
-    model_config = ConfigDict(frozen=True)
-    name: OxidicomCustomMetadataField
-    value: int | Literal["unknown"]
-    series_instance_uid: str
-    study_instance_uid: str
-    pacs_identifier: str
-    patient_id: str
-    creation_date: PastDatetime
-    association_ulid: str
-    series_dir: str
-    """Folder path where the series' DICOM files can be found."""
-
-    _FNAME_RE: ClassVar[re.Pattern] = re.compile(
-        r"SERVICES/PACS/org.fnndsc.oxidicom/SERVICES/PACS/"
-        r"(?P<pacs_identifier>\w+)/(?P<series_dir_rel>.+?/.+?/.+?)/(?P<association_ulid>\w+?)/\w+=((unknown)|(\d+))"
-    )
-
-    @classmethod
-    def from_pacsfile(cls, pacs_file: PacsFile) -> Optional[Self]:
-        """
-        Attempt to convert from :class:`PacsFile`.
-        """
-        name = OxidicomCustomMetadataField.from_str(pacs_file.protocol_name)
-        if name is None:
-            return None
-
-        pacs_identifier, series_dir, association_ulid = cls._parse_ocm_fname(
-            pacs_file.fname
-        )
-
-        return cls(
-            name=name,
-            value=pacs_file.series_description,
-            series_instance_uid=pacs_file.series_instance_uid,
-            study_instance_uid=pacs_file.study_instance_uid,
-            pacs_identifier=pacs_identifier,
-            patient_id=pacs_file.patient_id,
-            creation_date=pacs_file.creation_date,
-            association_ulid=association_ulid,
-            series_dir=series_dir,
-        )
-
-    @classmethod
-    def _parse_ocm_fname(cls, fname: str) -> tuple[str, str, str]:
-        """
-        Parse the fname of an "oxidicom custom metadata" file.
-        """
-        match = cls._FNAME_RE.fullmatch(fname)
-        if not match:
-            raise ValueError(
-                f'Invalid fname of a "oxidicom custom metadata" file: {repr(fname)}'
-            )
-        pacs_identifier = match.group("pacs_identifier")
-        series_dir = f'SERVICES/PACS/{pacs_identifier}/{match.group("series_dir_rel")}'
-        return pacs_identifier, series_dir, match.group("association_ulid")
+    study_description: str = Field(alias="StudyDescription")
+    series_instance_uid: str = Field(alias="SeriesInstanceUID")
+    series_description: str = Field(alias="SeriesDescription")
+    folder_id: NonNegativeInt
+    pacs_id: NonNegativeInt
 
 
 class ChrisRunnableRequest(BaseModel):
@@ -140,32 +60,6 @@ class ChrisRunnableRequest(BaseModel):
     )
     params: dict[str, int | float | bool | str] = Field(
         title="Plugin parameters", default_factory=dict
-    )
-
-
-class InvalidRunnable(BaseModel):
-    """
-    Invalid requested plugins or pipelines.
-    """
-
-    runnable: ChrisRunnableRequest = Field(title="The requested plugin or pipeline.")
-    reason: str = Field(
-        title="Reason why the runnable is invalid.",
-        examples=[
-            "not found",
-            "`something` is not a valid parameter",
-            "`stuff` is not a valid argument for parameter `something`",
-        ],
-    )
-
-
-class InvalidRunnableResponse(BaseModel):
-    """
-    List of invalid requested plugins or pipelines.
-    """
-
-    errors: list[InvalidRunnable] = Field(
-        title="List of invalid requested plugins or pipelines."
     )
 
 
@@ -192,7 +86,7 @@ class DicomSeriesPayload(BaseModel):
 
     hasura_id: str = Field(title="ID of event from Hasura")
 
-    data: PacsFile = Field(title="The inserted DICOM file metadata")
+    data: RawPacsSeries = Field(title="The inserted DICOM file metadata")
     match: Sequence[DicomSeriesMatcher] = Field(
         title="Which DICOM series to include. Conditions are joined by AND."
     )
@@ -210,3 +104,38 @@ class DicomSeriesPayload(BaseModel):
             r'SERIE analysis: MRN="{PatientID}" description="{SeriesDescription}"'
         ],
     )
+
+
+class CreatedFeed(BaseModel):
+    feed: HttpUrl = Field(title="URL of created field", examples=["https://example.com/api/v1/100/"])
+
+
+
+class InvalidRunnable(BaseModel):
+    """
+    Invalid requested plugins or pipelines.
+    """
+
+    runnable: ChrisRunnableRequest = Field(title="The requested plugin or pipeline.")
+    reason: str = Field(
+        title="Reason why the runnable is invalid.",
+        examples=[
+            "not found",
+            "`something` is not a valid parameter",
+            "`stuff` is not a valid argument for parameter `something`",
+        ],
+    )
+
+
+class InvalidRunnableList(BaseModel):
+    """
+    List of invalid requested plugins or pipelines.
+    """
+    errors: list[InvalidRunnable] = Field(
+        title="List of invalid requested plugins or pipelines."
+    )
+
+
+class BadRequestResponse(BaseModel):
+    error: str = Field(title="Error message", examples=['error message'])
+    data: Any = Field(examples=[{'id': 5}])

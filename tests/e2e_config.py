@@ -1,5 +1,3 @@
-from aiochris.types import ComputeResourceName
-
 EXAMPLE_DOWNLOAD_URL = "https://cube.chrisproject.org/api/v1/files/28617/None-1.2.276.0.7230010.3.1.4.3915146910.26736.1617073093.545.dcm"
 OXIDICOM_HOST = "oxidicom"
 OXIDICOM_PORT = 11111

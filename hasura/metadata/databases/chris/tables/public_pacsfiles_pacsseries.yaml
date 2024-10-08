@@ -1,12 +1,8 @@
 table:
-  name: pacsfiles_pacsfile
+  name: pacsfiles_pacsseries
   schema: public
-object_relationships:
-  - name: pacsfiles_pac
-    using:
-      foreign_key_constraint_on: pacs_id
 event_triggers:
-  - name: dicom_received
+  - name: on_pacs_series_create
     definition:
       enable_manual: false
       insert:

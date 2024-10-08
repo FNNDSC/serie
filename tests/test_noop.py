@@ -1,124 +1,68 @@
 """
-Integration tests to asser that SERIE correctly does nothing in situations where it should.
+Integration tests to assert that SERIE correctly does nothing in situations where it should.
 """
 
-import datetime
+import re
 import os.path
 
+import asyncio
 import pydantic
 import pytest
+import pytest_asyncio
 from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 
 import tests.e2e_config as config
+from aiochris_oag import PACSSeriesPatientSex, ApiClient, PacsApi, PACSSeries
 from serie import get_router
 from serie.dicom_series_metadata import DicomSeriesMetadataName
 from serie.models import (
-    PacsFile,
+    RawPacsSeries,
     DicomSeriesPayload,
     DicomSeriesMatcher,
     ChrisRunnableRequest,
-    InvalidRunnableResponse,
+    InvalidRunnableList, BadRequestResponse,
 )
-from tests.examples import read_example
-from tests.helpers import download_and_send_dicom
+from tests.helpers import download_and_send_dicom, get_configuration
 
-_EXAMPLE_DICOM_URL = "https://cube-for-testing-chrisui.apps.shift.nerc.mghpcc.org/api/v1/files/570/0156-1.3.12.2.1107.5.2.19.45152.2013030808105683775785575.dcm"
-_AE_TITLE = "SERIETESTOTHER"
+_EXAMPLE_DICOM_URL = "https://zenodo.org/records/13883238/files/DAI000290.dcm?download=1"
+_EXAMPLE_DICOM_SERIES_UID = "1.2.276.0.7230010.3.1.3.8323329.8519.1517874337.873097"
+_FOLDER_ID_RE = re.compile(r"(?<=/api/v1/filebrowser/)(?P<id>\d+)(?=/)")
 
 
-def _ocm_for_example(protocol_name: str):
-    return PacsFile(
-        id=500,
-        ProtocolName=protocol_name,
-        PatientName="",
-        PatientSex="",
-        AccessionNumber="",
-        PatientAge=None,
-        creation_date=datetime.datetime(2023, 1, 20),
-        pacs_id=2,
-        PatientBirthDate=None,
-        PatientID="1449c1d",
-        StudyDate=datetime.datetime(2013, 3, 8),
-        Modality="",
-        fname=f"SERVICES/PACS/org.fnndsc.oxidicom/SERVICES/PACS/{_AE_TITLE}/1449c1d-anonymized-20090701/MR-Brain_w_o_Contrast-98edede8b2-20130308/00005-SAG_MPRAGE_220_FOV-a27cf06/01J3V1NANC16JHR3XA8S43CCZY/OxidicomAttemptedPushCount=192",
-        StudyDescription="",
-        SeriesDescription="192",
-        SeriesInstanceUID="1.3.12.2.1107.5.2.19.45152.2013030808061520200285270.0.0.0",
-        StudyInstanceUID="1.2.840.113845.11.1000000001785349915.20130308061609.6346698",
+@pytest.mark.integration
+def test_does_nothing(example_series):
+    payload = DicomSeriesPayload(
+        hasura_id="8765-4321",
+        data=example_series,
+        match=[
+            DicomSeriesMatcher(
+                tag="SeriesDescription",
+                regex=r".*(Chest).*",
+                case_sensitive=False
+            )
+        ],
+        jobs=[ChrisRunnableRequest(runnable_type="plugin", name="pl-dcm2niix")],
+        feed_name_template="I should not be created",
     )
+    res = post(payload)
+    assert res.status_code == status.HTTP_204_NO_CONTENT
+    # assert res.json().get("error", None) == "DICOM series not found"
 
 
 @pytest.mark.integration
-@pytest.mark.parametrize(
-    "explanation, data",
-    (
-        (
-            'Should do nothing when receiving a DICOM that is not "OxidicomAttemptedPushCount=*"',
-            DicomSeriesPayload(
-                hasura_id="1234-5678",
-                data=PacsFile.model_validate_json(read_example("pacsfile6.json")),
-                match=[
-                    DicomSeriesMatcher(
-                        tag="SeriesDescription",
-                        regex=r".*(chest).*",
-                    )
-                ],
-                jobs=[ChrisRunnableRequest(runnable_type="plugin", name="pl-dcm2niix")],
-                feed_name_template="I should not be created",
-            ),
-        ),
-        (
-            "Should do nothing when receiving the NumberOfSeriesRelatedInstances=* file",
-            DicomSeriesPayload(
-                hasura_id="8765-4321",
-                data=_ocm_for_example("NumberOfSeriesRelatedInstances"),
-                match=[
-                    DicomSeriesMatcher(
-                        tag="StudyDescription",
-                        regex=r".*",
-                    )
-                ],
-                jobs=[ChrisRunnableRequest(runnable_type="plugin", name="pl-dcm2niix")],
-                feed_name_template="I should not be created",
-            ),
-        ),
-        (
-            "Should do nothing when receiving a series that does not match the specified matcher",
-            DicomSeriesPayload(
-                hasura_id="8765-4321",
-                data=_ocm_for_example("OxidicomAttemptedPushCount"),
-                match=[
-                    DicomSeriesMatcher(
-                        tag="SeriesDescription",
-                        regex=r".*(chest).*",
-                    )
-                ],
-                jobs=[ChrisRunnableRequest(runnable_type="plugin", name="pl-dcm2niix")],
-                feed_name_template="I should not be created",
-            ),
-        ),
-    ),
-)
-def test_does_nothing(explanation, data):
-    res = post(data)
-    res.raise_for_status()
-    assert res.status_code == status.HTTP_204_NO_CONTENT, explanation
-
-
-@pytest.mark.integration
-def test_catches_missing_plugins():
+def test_catches_missing_plugins(example_series):
     data = DicomSeriesPayload(
         hasura_id="8765-4321",
-        data=_ocm_for_example("OxidicomAttemptedPushCount"),
+        data=example_series,
         match=[
             DicomSeriesMatcher(
                 tag=DicomSeriesMetadataName.StudyDescription,
-                regex=r".*(Brain).*",
+                regex=r".*(Chest).*",
                 case_sensitive=False,
             ),
             DicomSeriesMatcher(
-                tag=DicomSeriesMetadataName.Modality, regex="MR", case_sensitive=True
+                tag=DicomSeriesMetadataName.Modality, regex="CR", case_sensitive=True
             ),
         ],
         jobs=[
@@ -130,9 +74,11 @@ def test_catches_missing_plugins():
     )
     res = post(data)
     assert res.status_code == status.HTTP_400_BAD_REQUEST
-    error = InvalidRunnableResponse.model_validate_json(res.content)
-    assert error.errors[0].runnable.name == "pl-i-do-not-exist"
-    assert error.errors[0].runnable.version == "99"
+    error = BadRequestResponse.model_validate_json(res.content)
+    assert isinstance(error.data, dict)
+    invalid_list = InvalidRunnableList.model_validate(error.data)
+    assert invalid_list.errors[0].runnable.name == "pl-i-do-not-exist"
+    assert invalid_list.errors[0].runnable.version == "99"
 
 
 def post(data: pydantic.BaseModel):
@@ -148,6 +94,38 @@ def post(data: pydantic.BaseModel):
     return res
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest_asyncio.fixture(scope="session")
+async def example_series(push_sample_dicom, api_client: ApiClient) -> RawPacsSeries:
+    pacs_api = PacsApi(api_client)
+    poll_count = 0
+    while poll_count < config.MAX_POLL:
+        search = await pacs_api.pacs_series_search_list(
+            series_instance_uid=_EXAMPLE_DICOM_SERIES_UID
+        )
+        if len(search.results) > 0:
+            return _series_to_raw(search.results[0])
+        await asyncio.sleep(1)
+        poll_count += 1
+    raise pytest.fail(f"Series {_EXAMPLE_DICOM_SERIES_UID} was not pushed to CUBE.")
+
+
+@pytest_asyncio.fixture(scope="session")
+async def api_client() -> ApiClient:
+    configuration = get_configuration()
+    async with ApiClient(configuration) as api_client:
+        yield api_client
+
+
+@pytest.fixture(scope="session")
 def push_sample_dicom():
-    download_and_send_dicom(_EXAMPLE_DICOM_URL, _AE_TITLE)
+    download_and_send_dicom(_EXAMPLE_DICOM_URL, config.AE_TITLE)
+
+
+def _series_to_raw(series: PACSSeries) -> RawPacsSeries:
+    data = series.model_dump(by_alias=True)
+    del data["folder"]
+    del data["pacs_identifier"]
+    data["folder_id"] = int(_FOLDER_ID_RE.search(series.folder).group('id'))
+    data["pacs_id"] = 99  # fake value does not matter
+    data["PatientSex"] = series.patient_sex.to_dict()
+    return RawPacsSeries.model_validate(data)

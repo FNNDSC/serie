@@ -1,22 +1,25 @@
 import asyncio
 import dataclasses
 import logging
+import re
 from collections.abc import Sequence
-from typing import Optional
 
-import aiochris.models
-from aiochris.models import Plugin, Feed, PluginInstance
-from aiochris.types import ChrisURL
-
+from aiochris_oag import (
+    Plugin,
+    PluginInstance,
+    PluginsApi,
+    PluginInstanceRequest,
+    ApiClient,
+    DefaultApi,
+    FeedRequest,
+)
 from serie.clients import Clients
 from serie.models import (
-    OxidicomCustomMetadata,
     ChrisRunnableRequest,
-    PacsFile,
-    OxidicomCustomMetadataField,
+    RawPacsSeries,
     InvalidRunnable,
 )
-from serie.series_file_pair import DicomSeriesFilePair
+from serie.resolved_pacs_series import ResolvedPacsSeries, resolve_series
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +31,8 @@ _HARDCODED_RUNNABLES = [
 The runnables which are needed to create feeds.
 """
 
+_NOTE_ID_RE = re.compile(r"/api/v1/note(\d+)/")
+
 
 @dataclasses.dataclass(frozen=True)
 class FoundPlugin:
@@ -35,6 +40,7 @@ class FoundPlugin:
     A plugin which was found in CUBE, and the runnable request which requested it.
     """
 
+    plugin_api: PluginsApi
     plugin: Plugin
     runnable: ChrisRunnableRequest
 
@@ -42,10 +48,16 @@ class FoundPlugin:
         """
         Run the plugin with the runnable's parameters on the data from the ``previous`` parameter.
         """
-        # TODO warning:
+        # WARNING:
         #  - unrecognized parameters are silently ignored.
         #  - unhandled error if parameter value is wrong type.
-        return await self.plugin.create_instance(previous, **self.runnable.params)
+
+        return await self.plugin_api.plugins_instances_create(
+            self.plugin.id,
+            PluginInstanceRequest(
+                previous_id=previous.id, additional_properties=self.runnable.params
+            ),
+        )
 
 
 @dataclasses.dataclass(frozen=True)
@@ -55,36 +67,18 @@ class ClientActions:
     """
 
     auth: str | None
-    url: ChrisURL
+    host: str
     clients: Clients
 
-    async def resolve_series(self, data: PacsFile) -> Optional[DicomSeriesFilePair]:
-        """
-        Check whether the given PACSFile is a "OxidicomAttemptedPushCount=*" file
-        (which signifies that the reception of a DICOM series is complete). If so,
-        get one of the DICOM instances of the series from *CUBE*.
-        """
-        if (ocm := OxidicomCustomMetadata.from_pacsfile(data)) is None:
-            return None
-        if ocm.name != OxidicomCustomMetadataField.attempted_push_count:
-            return None
-        if (
-            pacs_file := await self._get_first_dicom_of(ocm)
-        ) is None:  # pragma: no cover
-            logger.warning(
-                f"Received the file {data.fname} with SeriesInstanceUID={data.series_instance_uid}, "
-                "but no file belonging to this DICOM series is found in CUBE. "
-                "(This is a bug in oxidicom, or worse.)"
-            )
-            return None
-        return DicomSeriesFilePair(ocm, pacs_file)
+    async def resolve_series(self, data: RawPacsSeries) -> ResolvedPacsSeries:
+        return await resolve_series(self._get_client(), data)
 
     async def create_analysis(
         self,
-        series: DicomSeriesFilePair,
+        series: ResolvedPacsSeries,
         runnables_request: Sequence[ChrisRunnableRequest],
         feed_name_template: str,
-    ) -> Feed:
+    ) -> str:
         """
         Create a feed containing ``data_dir`` and run all of ``runnable_request``.
         Set the name of the created feed using ``feed_name_template``.
@@ -92,13 +86,19 @@ class ClientActions:
         pl_dircopy, pl_unstack_folders, plugins = await self._get_plugins(
             runnables_request
         )
-        dircopy_inst = await pl_dircopy.create_instance(dir=series.series_dir)
-        root_inst = await pl_unstack_folders.create_instance(previous=dircopy_inst)
+        plugins_api = self._get_plugins_api()
+        dircopy_inst = await plugins_api.plugins_instances_create(
+            pl_dircopy.id,
+            PluginInstanceRequest(additional_properties={"dir": series.folder.path}),
+        )
+        root_inst = await plugins_api.plugins_instances_create(
+            pl_unstack_folders.id, PluginInstanceRequest(previous_id=dircopy_inst.id)
+        )
         branches = (plugin.create_instance(root_inst) for plugin in plugins)
         feed_name = _expand_variables(feed_name_template, series)
         set_feed_name = self._set_feed_name(dircopy_inst, feed_name)
-        feed, *_ = await asyncio.gather(set_feed_name, *branches)
-        return feed
+        await asyncio.gather(set_feed_name, *branches)
+        return dircopy_inst.feed
 
     async def _get_plugins(
         self, runnables_request: Sequence[ChrisRunnableRequest]
@@ -114,7 +114,7 @@ class ClientActions:
         needed_runnables = _HARDCODED_RUNNABLES + list(runnables_request)
         plugin_requests = (
             self.clients.get_plugin(
-                self.url, self.auth, runnable.name, runnable.version
+                self.host, self.auth, runnable.name, runnable.version
             )
             for runnable in needed_runnables
         )
@@ -127,38 +127,32 @@ class ClientActions:
         if len(missing_plugins) > 0:
             raise InvalidRunnablesError(missing_plugins)
         pl_dircopy, pl_unstack_folders, *others = plugins  # noqa
-        found_plugins = [FoundPlugin(p, r) for p, r in zip(others, runnables_request)]
+        pa = self._get_plugins_api()
+        found_plugins = [FoundPlugin(pa, p, r) for p, r in zip(others, runnables_request)]
         return pl_dircopy, pl_unstack_folders, found_plugins
 
-    async def _get_first_dicom_of(
-        self, oxm_file: OxidicomCustomMetadata
-    ) -> Optional[aiochris.models.PACSFile]:
+    async def _set_feed_name(self, dircopy_inst: PluginInstance, name: str):
         """
-        Get an arbitrary DICOM file belonging to the series represented by ``oxm_file``.
+        Set the feed name of a plugin instance.
         """
-        chris = await self.clients.get_client(self.url, self.auth)
-        return await chris.search_pacsfiles(
-            pacs_identifier=oxm_file.pacs_identifier,
-            PatientID=oxm_file.patient_id,
-            StudyInstanceUID=oxm_file.study_instance_uid,
-            SeriesInstanceUID=oxm_file.series_instance_uid,
-        ).first()
+        feeds_api = self._get_feeds_api()
+        await feeds_api.root_update(dircopy_inst.feed_id, FeedRequest(name=name))
 
-    @staticmethod
-    async def _set_feed_name(dircopy_inst: PluginInstance, name: str) -> Feed:
-        """
-        Get the feed of the given plugin instance, and set its feed name.
-        """
-        feed = await dircopy_inst.get_feed()
-        await feed.set(name=name)
-        return feed
+    def _get_feeds_api(self) -> DefaultApi:
+        return DefaultApi(self._get_client())
+
+    def _get_plugins_api(self) -> PluginsApi:
+        return PluginsApi(self._get_client())
+
+    def _get_client(self) -> ApiClient:
+        return self.clients.get_api_client(self.host, self.auth)
 
 
-def _expand_variables(template: str, series: DicomSeriesFilePair) -> str:
+def _expand_variables(template: str, resolved: ResolvedPacsSeries) -> str:
     """
     Expand the value of variables in ``template`` using field values from ``series``.
     """
-    return template.format(**series.to_dict())
+    return template.format(**resolved.to_dicom_metadata())
 
 
 class InvalidRunnablesError(Exception):

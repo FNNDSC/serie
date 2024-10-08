@@ -1,4 +1,5 @@
 import os
+import urllib.parse
 from pathlib import Path
 
 import pydicom
@@ -7,7 +8,17 @@ import pytest
 import requests
 
 import tests.e2e_config as config
+from aiochris_oag import Configuration
+from serie.settings import get_settings
 
+
+def get_configuration() -> Configuration:
+    settings = get_settings()
+    return Configuration(
+        host=settings.get_host(),
+        username=config.CHRIS_USERNAME,
+        password=config.CHRIS_PASSWORD,
+    )
 
 def download_and_send_dicom(url: str, ae_title: str):
     _send_dicom(_get_sample_dicom(url), ae_title)
@@ -48,5 +59,5 @@ def _send_dicom(dicom_file: str | os.PathLike, ae_title: str):
 
 
 def _basename(s: str) -> str:
-    split = s.rsplit("/", maxsplit=1)
-    return s if len(split) == 1 else split[1]
+    path = urllib.parse.urlparse(s).path
+    return os.path.basename(path)

@@ -1,19 +1,16 @@
 import re
 from collections.abc import Sequence
 
+from aiochris_oag import PACSSeries
 from serie.dicom_series_metadata import DicomSeriesMetadata
 from serie.models import DicomSeriesMatcher
-from serie.series_file_pair import DicomSeriesFilePair
 
 
-def is_match(
-    series: DicomSeriesFilePair, conditions: Sequence[DicomSeriesMatcher]
-) -> bool:
+def is_match(series: PACSSeries, conditions: Sequence[DicomSeriesMatcher]) -> bool:
     """
     :return: True if the series matches the conditions
     """
-    series_dict = series.to_dict()
-    return all(_matches(cond, series_dict) for cond in conditions)
+    return all(_matches(cond, series.to_dict()) for cond in conditions)
 
 
 def _matches(condition: DicomSeriesMatcher, series_dict: DicomSeriesMetadata) -> bool:

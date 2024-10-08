@@ -17,8 +17,9 @@ jobs:
       - name: Spin up ChRIS
         uses: FNNDSC/miniChRIS-docker@master
         with:
-          # for testing, we need to create plugin instances, but we don't need the plugins to actually run.
-          services: chris oxidicom graphql-engine
+          # for testing, we need to create plugin instances and receive DICOM,
+          # but we don't need the plugins to actually run.
+          services: chris worker db oxidicom graphql-engine
       - name: Build
         run: docker compose build test
       - name: Test

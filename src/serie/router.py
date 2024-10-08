@@ -1,12 +1,12 @@
-from typing import Annotated
+from typing import Annotated, Union
 
-from aiochris.types import FeedUrl
 from fastapi import Response, status, Header, APIRouter
 
+from aiochris_oag.exceptions import UnauthorizedException, NotFoundException
 from serie.actions import ClientActions, InvalidRunnablesError
-from serie.clients import BadAuthorizationError, Clients
+from serie.clients import Clients
 from serie.match import is_match
-from serie.models import DicomSeriesPayload, InvalidRunnableResponse
+from serie.models import DicomSeriesPayload, InvalidRunnableList, CreatedFeed, BadRequestResponse
 from serie.settings import get_settings
 
 
@@ -21,38 +21,67 @@ def get_router() -> APIRouter:
     clients = Clients()
     router = APIRouter()
 
-    @router.post("/dicom_series/")
+    @router.post(
+        "/dicom_series/",
+        description=(
+            "A web hook which should be called when a row is inserted into "
+            "CUBE database's pacsfiles_pacsseries table."
+        ),
+        responses={
+            status.HTTP_201_CREATED: {
+                "description": "Feed created",
+                "model": CreatedFeed,
+            },
+            status.HTTP_204_NO_CONTENT: {
+                "description": "DICOM series did not match"
+            },
+            status.HTTP_400_BAD_REQUEST: {
+                "model": BadRequestResponse
+            },
+            status.HTTP_401_UNAUTHORIZED: {
+                "model": None
+            }
+        },
+        status_code=status.HTTP_201_CREATED
+    )
     async def dicom_series(
         payload: DicomSeriesPayload,
         authorization: Annotated[str, Header()],
         response: Response,
-    ) -> None | InvalidRunnableResponse | FeedUrl:
+    ):
         """
         Create *ChRIS* plugin instances and/or workflows on DICOM series data when an entire DICOM series is received.
+        On success, returns the URL of the created feed.
         """
         settings = get_settings()
         actions = ClientActions(
-            auth=authorization, url=settings.chris_url, clients=clients
+            auth=authorization, host=settings.get_host(), clients=clients
         )
-        if (series := await actions.resolve_series(payload.data)) is None:
-            response.status_code = status.HTTP_204_NO_CONTENT
+        try:
+            resolved = await actions.resolve_series(payload.data)
+        except UnauthorizedException as e:
+            response.status_code = e.status
             return None
-        if not is_match(series, payload.match):
+        except NotFoundException as e:
+            response.status_code = status.HTTP_400_BAD_REQUEST
+            return BadRequestResponse(error="DICOM series not found", data=payload.data)
+
+        if not is_match(resolved.series, payload.match):
             response.status_code = status.HTTP_204_NO_CONTENT
             return None
 
         try:
-            feed = await actions.create_analysis(
-                series, payload.jobs, payload.feed_name_template
+            feed_url = await actions.create_analysis(
+                resolved, payload.jobs, payload.feed_name_template
             )
-        except BadAuthorizationError as _e:  # pragma: no cover
-            response.status_code = status.HTTP_401_UNAUTHORIZED
-            return None
         except InvalidRunnablesError as e:
             response.status_code = status.HTTP_400_BAD_REQUEST
-            return InvalidRunnableResponse(errors=e.runnables)
+            return BadRequestResponse(
+                error="Invalid runnables",
+                data=InvalidRunnableList(errors=e.runnables)
+            )
 
         response.status_code = status.HTTP_201_CREATED
-        return feed.url
+        return CreatedFeed(feed=feed_url)
 
     return router

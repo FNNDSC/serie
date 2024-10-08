@@ -13,8 +13,8 @@ use cases such as "for every DICOM series received with the description
 
 ## How It Works
 
-_SERIE_ should be called on by an instance of [Hasura](https://hasura.io/)
-listening to the PostgreSQL database of the _ChRIS_ backend (_CUBE_).
+_SERIE_ should be called on by an instance of [Hasura](https://hasura.io/) via its
+"events" feature, listening to the PostgreSQL database of the _ChRIS_ backend (_CUBE_).
 
 [![Architecture Diagram](https://chrisproject.org/assets/images/ChRIS_architecture-febf870b69ec83221fa0ede8e6b70447.svg)](https://chrisproject.org/docs/architecture)
 
@@ -40,7 +40,6 @@ For local testing, run _ChRIS_ locally with Hasura.
 cd
 git clone https://github.com/FNNDSC/miniChRIS-docker.git
 cd miniChRIS-docker
-./minichris.sh
 docker compose --profile hasura up -d
 ```
 
@@ -57,14 +56,14 @@ First, run [miniChRIS-docker](https://github.com/FNNDSC/miniChRIS-docker) to get
 then run pytest and _SERIE_ using Docker Compose:
 
 ```shell
-docker compose run --use-aliases test
+docker compose run --rm --use-aliases test
 ```
 
 ### Deployment Notes
 
-- The only environment variable needed by _SERIE_ is `CHRIS_URL`, which should be set
-  to the API URL of _CUBE_ e.g. `https://cube.chrisproject.org/api/v1/`
+- The only environment variable needed by _SERIE_ is `CHRIS_HOST`, which should be set
+  to the API host of _CUBE_, e.g. `https://cube.chrisproject.org/`
 - The configuration of _SERIE_ happens in Hasura. You can use the Hasura console to
   edit the configuration, or use [hasura-cli](https://hasura.io/docs/latest/hasura-cli/overview/)
   configure _SERIE_ via Hasura metadata YAML files. See the example in
-  [hasura/.../public_pacsfiles_pacsfile.yaml](hasura/metadata/databases/chris/tables/public_pacsfiles_pacsfile.yaml).
+  [hasura/.../public_pacsfiles_pacsseries.yaml](hasura/metadata/databases/chris/tables/public_pacsfiles_pacsseries.yaml).
