@@ -67,6 +67,8 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           push: ${{ steps.dockerhub_login.outcome == 'success' && steps.ghcr_login.outcome == 'success' }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
       - name: Update DockerHub description
         uses: peter-evans/dockerhub-description@v4
         if: ${{ steps.dockerhub_login.outcome == 'success' }}
