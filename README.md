@@ -41,7 +41,7 @@ cd
 git clone https://github.com/FNNDSC/miniChRIS-docker.git
 cd miniChRIS-docker
 ./minichris.sh
-docker compose --profile hasura up -d
+docker compose --profile pacs --profile hasura up -d
 ```
 
 ### Testing
@@ -57,6 +57,7 @@ First, run [miniChRIS-docker](https://github.com/FNNDSC/miniChRIS-docker) to get
 then run pytest and _SERIE_ using Docker Compose:
 
 ```shell
+docker compose --profile test build
 docker compose run --use-aliases test
 ```
 

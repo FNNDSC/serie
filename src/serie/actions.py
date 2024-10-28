@@ -158,7 +158,16 @@ def _expand_variables(template: str, series: DicomSeriesFilePair) -> str:
     """
     Expand the value of variables in ``template`` using field values from ``series``.
     """
-    return template.format(**series.to_dict())
+    return _sanitize_feed_name(template.format(**series.to_dict()))
+
+
+def _sanitize_feed_name(name: str) -> str:
+    """
+    Sanitize the feed name to be allowed by CUBE's undocumented limitations.
+    """
+    # slash not allowed. https://github.com/FNNDSC/ChRIS_ultron_backEnd/issues/523
+    sanitized = name.replace('/', '-')
+    return sanitized[:200]  # truncate to 200 characters length
 
 
 class InvalidRunnablesError(Exception):

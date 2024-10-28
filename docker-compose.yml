@@ -8,6 +8,8 @@ services:
       - ./src:/app:ro
     ports:
       - 8888:8000
+    environment:
+      CHRIS_URL: http://chris:8000/api/v1/
     networks:
       minichris-local:
         aliases:
