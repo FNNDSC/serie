@@ -62,7 +62,8 @@ docker compose run --rm --use-aliases test
 ### Deployment Notes
 
 - The only environment variable needed by _SERIE_ is `CHRIS_HOST`, which should be set
-  to the API host of _CUBE_, e.g. `https://cube.chrisproject.org/`
+  to the API host of _CUBE_, e.g. `https://cube.chrisproject.org/` (trailing slash optional,
+  leave out the `api/v1/` path prefix.)
 - The configuration of _SERIE_ happens in Hasura. You can use the Hasura console to
   edit the configuration, or use [hasura-cli](https://hasura.io/docs/latest/hasura-cli/overview/)
   configure _SERIE_ via Hasura metadata YAML files. See the example in
