@@ -2,7 +2,7 @@ from typing import Optional
 
 import asyncstdlib
 
-from aiochris_oag import Configuration, Plugin, ApiClient, PluginsApi
+from aiochris_oag import Configuration, Plugin, ApiClient, PluginsApi, PipelinesApi, Pipeline
 
 
 class Clients:
@@ -24,6 +24,20 @@ class Clients:
         api_client = self.get_api_client(host, auth)
         plugins_api = PluginsApi(api_client)
         res = await plugins_api.plugins_search_list(name=name, version=version)
+        if res.results is None or len(res.results) == 0:
+            return None
+        return res.results[0]
+
+    @asyncstdlib.lru_cache(maxsize=64)
+    async def get_pipeline(
+            self, host: str, auth: Optional[str], name: str
+    ) -> Optional[Pipeline]:
+        """
+        Get a *ChRIS* pipeline.
+        """
+        api_client = self.get_api_client(host, auth)
+        pipelines_api = PipelinesApi(api_client)
+        res = await pipelines_api.pipelines_search_list(name=name)
         if res.results is None or len(res.results) == 0:
             return None
         return res.results[0]

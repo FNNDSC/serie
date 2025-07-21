@@ -1,6 +1,6 @@
 import re
 from collections.abc import Sequence
-from typing import Literal, Optional, Any
+from typing import Literal, Optional, Any, Annotated, Union
 
 from pydantic import (
     BaseModel,
@@ -42,15 +42,13 @@ class RawPacsSeries(BaseModel):
     pacs_id: NonNegativeInt
 
 
-class ChrisRunnableRequest(BaseModel):
-    """
-    Identifying details of a _ChRIS_ plugin.
-
-    (Only plugins supported for now. Support for pipelines is a potential future feature.)
-    """
-
+# Base config model
+class ChrisBaseRunnable(BaseModel):
     model_config = ConfigDict(frozen=True)
 
+
+# Plugin variant
+class PluginRunnable(ChrisBaseRunnable):
     runnable_type: Literal["plugin"] = Field(
         alias="type", title="Type of runnable", default="plugin"
     )
@@ -61,6 +59,21 @@ class ChrisRunnableRequest(BaseModel):
     params: dict[str, int | float | bool | str] = Field(
         title="Plugin parameters", default_factory=dict
     )
+
+
+# Pipeline variant
+class PipelineRunnable(ChrisBaseRunnable):
+    runnable_type: Literal["pipeline"] = Field(
+        alias="type", title="Type of runnable", default="pipeline"
+    )
+    name: str = Field(title="Pipeline ID", examples=["My anon pipeline"])
+
+
+# Discriminated union using `type` as the discriminator
+ChrisRunnableRequest = Annotated[
+    PluginRunnable | PipelineRunnable, Field(discriminator="runnable_type")
+]
+
 
 
 class DicomSeriesMatcher(BaseModel):

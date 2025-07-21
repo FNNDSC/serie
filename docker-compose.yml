@@ -8,13 +8,15 @@ services:
       - ./src:/app:ro
     ports:
       - 8888:8000
+    environment:
+      CHRIS_HOST: http://chris:8000/
     networks:
       minichris-local:
         aliases:
           - dev.serie
   # End-to-end testing
   test:
-    image: localhost/fnndsc/serie:dev
+    image: local/serie
     build: &build
       context: .
       args:
@@ -30,7 +32,7 @@ services:
       - ./tests:/app/tests:ro
       - ./hasura:/hasura:ro
     environment:
-      CHRIS_HOST: http://chris:8000
+      CHRIS_HOST: http://chris:8000/
     networks:
       minichris-local:
         aliases:
@@ -64,7 +66,7 @@ services:
     working_dir: /app
     command: python -m tests.e2e_setup_and_reset
     environment:
-      CHRIS_HOST: http://chris:8000
+      CHRIS_HOST: http://chris:8000/
     networks:
       minichris-local:
     profiles:
