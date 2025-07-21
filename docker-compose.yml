@@ -16,7 +16,7 @@ services:
           - dev.serie
   # End-to-end testing
   test:
-    image: local/serie
+    image: localhost/fnndsc/serie:dev
     build: &build
       context: .
       args:
