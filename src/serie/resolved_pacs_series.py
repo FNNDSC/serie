@@ -18,6 +18,7 @@ class ResolvedPacsSeries(BaseModel):
             PatientName=self.series.patient_name,
             PatientBirthDate=self.series.patient_birth_date,
             PatientSex=self.series.patient_sex,
+            PatientAge=self.series.patient_age,
             StudyDate=self.series.study_date,
             AccessionNumber=self.series.accession_number,
             Modality=self.series.modality,

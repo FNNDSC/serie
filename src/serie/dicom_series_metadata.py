@@ -11,6 +11,7 @@ class DicomSeriesMetadataName(enum.Enum):
     PatientName = "PatientName"
     PatientBirthDate = "PatientBirthDate"
     PatientSex = "PatientSex"
+    PatientAge = "PatientAge"
     StudyDate = "StudyDate"
     AccessionNumber = "AccessionNumber"
     Modality = "Modality"
