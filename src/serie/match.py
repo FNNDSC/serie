@@ -18,4 +18,4 @@ def _matches(condition: DicomSeriesMatcher, series_dict: DicomSeriesMetadata) ->
         return False
     value = series_dict[condition.tag.value]
     flag = re.IGNORECASE if condition.case_sensitive else re.NOFLAG
-    return condition.regex.fullmatch(value) is not None
+    return condition.regex.fullmatch(str(value)) is not None
