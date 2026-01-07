@@ -13,10 +13,6 @@ class ResolvedPacsSeries(BaseModel):
     folder: FileBrowserFolder
 
     def to_dicom_metadata(self) -> DicomSeriesMetadata:
-        patient_age = self.series.patient_age
-        if patient_age is None and self.series.study_date is not None \
-                and self.series.patient_birth_date is not None:
-            patient_age = (self.series.study_date - self.series.patient_birth_date).days
         return DicomSeriesMetadata(
             PatientID=self.series.patient_id,
             PatientName=self.series.patient_name,
@@ -45,4 +41,7 @@ async def resolve_series(
         pacs_api.pacs_series_retrieve(data.id),
         folder_api.filebrowser_retrieve(data.folder_id),
     )
+    if series.patient_age is None and series.study_date is not None \
+            and series.patient_birth_date is not None:
+        series.patient_age = (series.study_date - series.patient_birth_date).days
     return ResolvedPacsSeries(series=series, folder=folder)
