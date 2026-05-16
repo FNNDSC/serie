@@ -17,7 +17,7 @@ jobs:
     name: Tests
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Spin up ChRIS
         uses: FNNDSC/miniChRIS-docker@master
         with:
@@ -39,7 +39,7 @@ jobs:
       - name: Copy coverage.xml from container
         run: docker cp "$(docker compose ps -a test -q | tail -n 1):/app/coverage.xml" coverage.xml
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 #v6.0.0
         with:
           files: ./coverage.xml
           fail_ci_if_error: true
